@@ -1,0 +1,31 @@
+package com.example.travelplanner.place.dto;
+
+import com.example.travelplanner.place.entity.Place;
+
+import java.math.BigDecimal;
+
+public record PlaceResponse(
+        Long id,
+        String name,
+        String category,
+        String region,
+        String address,
+        BigDecimal latitude,
+        BigDecimal longitude,
+        String priceRange,
+        String openHours
+) {
+    public static PlaceResponse from(Place place) {
+        return new PlaceResponse(
+                place.getId(),
+                place.getName(),
+                place.getCategory().name(),
+                place.getRegion(),
+                place.getAddress(),
+                place.getLatitude(),
+                place.getLongitude(),
+                place.getPriceRange(),
+                place.getOpenHours()
+        );
+    }
+}
