@@ -4,9 +4,9 @@
 > "이 규칙대로 짜라"는 계약(contract) 문서로 취급한다. 새 도메인/API를 추가하기 전에 반드시 이 문서를 먼저 읽고,
 > 여기 정의된 패키지 구조·레이어 규칙·공통 골격을 그대로 재사용한다. 규칙을 바꿔야 하면 코드보다 이 문서를 먼저 수정한다.
 
-- 버전: 0.3
-- 상태: 1단계(공통 골격 + 테스트 하네스 + 회원/일정/장소 기본 CRUD) 구현 완료
-- 최종 수정: 2026-08-01
+- 버전: 0.4
+- 상태: 기본 CRUD + 규칙 기반 여행 계획 최소 흐름 구현 완료
+- 최종 수정: 2026-09-23
 
 ---
 
@@ -15,8 +15,8 @@
 - 서비스명(기획): 트래블메이커 — 여행 조건(도시/날짜/예산/취향)을 입력하면 AI가 일정을 자동 생성하고,
   실시간 채팅으로 즉시 수정하며, 동행자와 하나의 일정을 실시간 공동 편집하는 여행 플래너.
 - 리포지토리명: TravelPlanner
-- 현재 단계: 공통 골격(common) + 테스트 하네스(support) + 회원(auth)/일정(itinerary)/장소(place) 기본 CRUD 구현 완료.
-- 다음 작업: 여행 조건 입력부터 일정 초안 저장까지 이어지는 최소 여행 계획 흐름을 구현한다. 인프라 도입 순서는 이 흐름을 확인한 뒤 정한다.
+- 현재 단계: 공통 골격 + 회원/일정/장소 CRUD + 여행 조건에서 일정 초안을 저장하는 최소 흐름 구현 완료.
+- 다음 작업: 실제 사용 흐름을 확인해 외부 장소 데이터와 이동 시간·영업시간 반영의 우선순위를 정한다.
 
 ## 2. 기술 스택 (build.gradle 기준, 임의 추측 금지)
 
@@ -63,6 +63,7 @@ com.example.travelplanner
 │  ├─ controller / service / repository / entity / dto
 ├─ itinerary/                   ← 일정 (구현 완료)
 ├─ place/                       ← 장소/검색 (구현 완료, 검색엔진 연동은 2단계)
+├─ planning/                    ← 여행 조건 기반 일정 초안 생성 (규칙 기반 V1 구현 완료)
 └─ realtime/                    ← 실시간/채팅 (2~3단계 이전에는 생성 금지)
 ```
 
@@ -117,6 +118,7 @@ return ApiResponse.success();       // ApiResponse<Void>
   - 회원(auth): `M0xx`
   - 일정(itinerary): `P0xx`
   - 장소(place): `L0xx`
+  - 여행 계획(planning): `G0xx`
   - 실시간(realtime): `R0xx`
 - 검증 실패(`@Valid` 실패, `MethodArgumentNotValidException`)는 이미 `GlobalExceptionHandler`가 처리하므로 컨트롤러에서 별도 처리하지 않는다.
 
@@ -171,13 +173,14 @@ public class Itinerary extends BaseTimeEntity {
 | 1 | auth (회원/로그인) | `POST /api/auth/signup`, `POST /api/auth/login`, `GET /api/members/me` | 구현 완료 |
 | 2 | itinerary (일정) | `docs/architecture/TravelPlanner-API명세.md` 2절 전체 | 구현 완료 |
 | 3 | place (장소/검색) | `GET/POST/PUT/DELETE /api/places` | 구현 완료 (검색엔진 연동 전, JPA 쿼리 필터링) |
-| 4 | realtime (실시간/채팅) | WebSocket 엔드포인트 | 2~3단계 이전 착수 금지, 미착수 |
+| 4 | planning (여행 계획) | `POST /api/travel-plans/generate` | 규칙 기반 V1 구현 완료 |
+| 5 | realtime (실시간/채팅) | WebSocket 엔드포인트 | 여행 계획 흐름 검증 전 착수 금지, 미착수 |
 
 ## 8. 단계적 로드맵
 
 - **0단계 (완료)**: Spring Boot 4.1 호환, 핵심 권한·일정 검증, 문서 동기화, 전체 테스트 통과.
 - **1단계 (완료)**: 공통 골격/테스트 하네스 + 회원·일정·장소 기본 CRUD (JWT 인증, H2 로컬).
-- **다음 단계**: 여행 조건 입력 → 장소 후보 → 일정 초안 → 검증 → 저장의 최소 흐름을 먼저 구현한다.
+- **여행 계획 최소 흐름 (완료)**: 여행 조건 입력 → 장소 후보 → 규칙 기반 일정 초안 → 검증 → 저장.
 - **인프라 단계**: 실제 흐름과 병목을 확인한 뒤 MySQL, 외부 장소/AI 연동, Redis, 검색엔진의 순서를 정한다.
 - **실시간 단계**: WebSocket 공동 편집, 낙관적 락(`@Version`), 필요 시 Redis Pub/Sub와 분산 락을 추가한다.
 

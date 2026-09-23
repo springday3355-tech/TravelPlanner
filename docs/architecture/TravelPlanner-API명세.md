@@ -1,4 +1,4 @@
-# TravelPlanner — API 명세 (1단계: 회원/일정/장소 기본 CRUD)
+# TravelPlanner — API 명세 (기본 CRUD + 여행 계획 초안 생성)
 
 > 구현 시 그대로 따르는 계약 문서. 경로/필드명을 임의로 바꾸지 않는다. 바꿔야 하면 이 문서를 먼저 수정한다.
 > 참고: `docs/architecture/TravelPlanner-SA.md`(레이어 규칙), `docs/architecture/TravelPlanner-DB설계.md`(테이블),
@@ -181,7 +181,55 @@
 
 요청 body는 위 응답 형태에서 `id` 제외. **등록 권한(관리자 전용 vs 사용자 개방)이 정책 문서 3절에 결정 대기로 남아 있다. 현재 구현은 "인증된 사용자면 누구나 가능"(ADMIN 제한 없음)으로, 결정 대기 항목을 임의로 확정하지 않기 위한 상태다.** 정책이 확정되면 이 문서와 `SecurityConfig`/`PlaceController`를 함께 갱신한다.
 
-## 4. 공통 DTO 참고
+## 4. 여행 계획 생성 (planning)
+
+| 메서드 | 경로 | 설명 | 인증 |
+|---|---|---|---|
+| POST | `/api/travel-plans/generate` | 여행 조건으로 날짜별 일정 초안을 생성하고 저장 | 필요 |
+
+요청:
+```json
+{
+  "title": "부산 2박 3일",
+  "city": "부산",
+  "startDate": "2026-10-01",
+  "endDate": "2026-10-03",
+  "budget": 500000,
+  "preferredCategories": ["SIGHT", "FOOD"],
+  "companionType": "FRIENDS",
+  "travelPace": "BALANCED",
+  "dailyStartTime": "09:00",
+  "dailyEndTime": "18:00",
+  "requiredPlaceIds": [10],
+  "excludedPlaceIds": [20]
+}
+```
+
+- `companionType`: `SOLO`, `COUPLE`, `FAMILY`, `FRIENDS`
+- `travelPace`: `RELAXED`(하루 최대 3곳), `BALANCED`(4곳), `ACTIVE`(5곳)
+- 동행 형태별 하루 상한: `FAMILY` 3곳, `COUPLE` 4곳, `SOLO`·`FRIENDS` 5곳. 여행 속도 상한과 비교해 더 작은 값을 적용한다.
+- 하루 시간의 기본값은 `09:00`~`18:00`이다. 장소당 90분과 장소 사이 30분을 배정한다.
+- 필수 장소 → 선호 카테고리 → 장소 ID 순서로 후보를 정렬한 뒤 날짜별로 배치한다.
+- 여행 기간은 최대 14일이다. 생성·일자·방문 항목 저장은 하나의 트랜잭션으로 처리한다.
+- 현재 `RULE_BASED_V1`은 실제 이동 시간, 영업시간, 장소별 비용을 반영하지 않으며 응답 `warnings`에 이 제약을 알린다. 예산은 생성된 일정 정보에 저장된다.
+
+성공 응답 (`data`):
+```json
+{
+  "generator": "RULE_BASED_V1",
+  "selectedPlaceCount": 6,
+  "availableSlotCount": 12,
+  "warnings": ["등록된 장소가 부족해 일부 시간대는 비워 두었습니다."],
+  "itinerary": { "id": 1, "title": "부산 2박 3일", "days": [] }
+}
+```
+
+실패:
+- `G001`(422): 해당 도시에 후보 장소 없음
+- `G002`(400): 필수 장소가 여행 도시와 다름
+- `G003`(400): 필수 장소 수가 배치 가능 수를 초과
+
+## 5. 공통 DTO 참고
 
 | DTO | 필드 |
 |---|---|
@@ -192,7 +240,7 @@
 | `Participant` | id, memberId, nickname, participantRole |
 | `Place` | id, name, category, region, address, latitude, longitude, priceRange, openHours |
 
-## 5. 이 문서에서 결정 대기로 남긴 항목
+## 6. 이 문서에서 결정 대기로 남긴 항목
 
 - [x] ~~로그인 응답 바디 스펙~~ → JWT로 확정, 1절 참고.
 - [ ] 공유 링크로 EDITOR 권한 부여 가능 여부 (현재 구현: 공유 링크는 항상 VIEWER)

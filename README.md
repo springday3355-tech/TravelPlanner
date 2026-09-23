@@ -6,7 +6,8 @@
 
 - 0단계 안정화 완료: Spring Boot 4.1 호환, 핵심 데이터 검증, 테스트 기반 정리
 - 1단계 CRUD 완료: 회원/JWT 인증, 일정·일자·방문 항목·동행자, 장소
-- 다음 목표: 여행 조건 입력부터 일정 초안 저장까지 이어지는 최소 여행 계획 흐름
+- 여행 계획 최소 흐름 완료: 여행 조건 입력 → 장소 후보 선정 → 날짜별 초안 생성 → 일정 저장
+- 현재 생성 방식: 교체 가능한 규칙 기반 생성기(`RULE_BASED_V1`)
 - 이후 목표: 실제 사용 흐름을 확인한 뒤 장소 검색, 캐시, 실시간 협업 인프라의 도입 순서 결정
 
 ## 기술 스택
@@ -52,6 +53,7 @@ macOS/Linux:
 
 - `POST /api/auth/signup`, `POST /api/auth/login`
 - `GET /api/members/me`
+- `POST /api/travel-plans/generate`: 여행 조건으로 일정 초안 생성·저장
 - `/api/itineraries`: 일정과 동행자, 일자, 방문 항목 관리
 - `/api/places`: 장소 등록, 조회, 수정, 삭제
 - `GET /api/itineraries/shared/{shareToken}`: 공유 일정 조회
