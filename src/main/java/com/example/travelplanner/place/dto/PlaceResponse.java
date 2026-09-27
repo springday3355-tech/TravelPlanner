@@ -3,6 +3,7 @@ package com.example.travelplanner.place.dto;
 import com.example.travelplanner.place.entity.Place;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 
 public record PlaceResponse(
         Long id,
@@ -13,7 +14,11 @@ public record PlaceResponse(
         BigDecimal latitude,
         BigDecimal longitude,
         String priceRange,
-        String openHours
+        String openHours,
+        LocalTime openingTime,
+        LocalTime closingTime,
+        Integer estimatedCost,
+        Integer recommendedVisitMinutes
 ) {
     public static PlaceResponse from(Place place) {
         return new PlaceResponse(
@@ -25,7 +30,11 @@ public record PlaceResponse(
                 place.getLatitude(),
                 place.getLongitude(),
                 place.getPriceRange(),
-                place.getOpenHours()
+                place.getOpenHours(),
+                place.getOpeningTime(),
+                place.getClosingTime(),
+                place.getEstimatedCost(),
+                place.getRecommendedVisitMinutes()
         );
     }
 }

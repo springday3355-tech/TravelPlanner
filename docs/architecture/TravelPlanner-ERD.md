@@ -1,4 +1,4 @@
-# TravelPlanner — ERD (1단계: 회원/일정/장소)
+# TravelPlanner — ERD (1~2단계)
 
 > `docs/architecture/TravelPlanner-DB설계.md`의 테이블 정의를 다이어그램으로 표현한 것. 두 문서는 항상 같이 갱신한다
 > (컬럼을 바꾸면 DB설계.md와 이 ERD를 동시에 수정). 모든 테이블은 `BaseTimeEntity` 상속으로 `created_at`/`updated_at`을
@@ -77,6 +77,10 @@ erDiagram
         decimal longitude
         varchar price_range
         varchar open_hours
+        time opening_time
+        time closing_time
+        int estimated_cost
+        int recommended_visit_minutes
         datetime created_at
         datetime updated_at
     }

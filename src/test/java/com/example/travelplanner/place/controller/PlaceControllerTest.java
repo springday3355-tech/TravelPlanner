@@ -11,6 +11,7 @@ import tools.jackson.databind.JsonNode;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.Map;
+import java.util.LinkedHashMap;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -61,6 +62,27 @@ class PlaceControllerTest extends ControllerTestSupport {
         mockMvc.perform(get("/api/places").param("region", "부산"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].region").value("부산"));
+    }
+
+    @Test
+    @DisplayName("장소의 좌표와 영업시간은 각각 한 쌍으로 입력해야 한다")
+    void create_withIncompletePlanningFields_isRejected() throws Exception {
+        String token = AuthTestHelper.signupAndGetToken(
+                mockMvc, objectMapper, "place-validation@example.com", "password123", "장소검증"
+        );
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("name", "잘못된 장소");
+        body.put("category", "SIGHT");
+        body.put("region", "서울");
+        body.put("latitude", 37.5);
+        body.put("openingTime", "09:00");
+
+        mockMvc.perform(post("/api/places")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("C001"));
     }
 
     @Test

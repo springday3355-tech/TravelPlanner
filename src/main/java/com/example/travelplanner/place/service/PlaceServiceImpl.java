@@ -44,9 +44,11 @@ public class PlaceServiceImpl implements PlaceService {
     @Override
     @Transactional
     public PlaceResponse create(PlaceRequest request) {
+        validatePlanningFields(request);
         Place place = Place.of(
                 request.name(), request.category(), request.region(), request.address(),
-                request.latitude(), request.longitude(), request.priceRange(), request.openHours()
+                request.latitude(), request.longitude(), request.priceRange(), request.openHours(),
+                request.openingTime(), request.closingTime(), request.estimatedCost(), request.recommendedVisitMinutes()
         );
         return PlaceResponse.from(placeRepository.save(place));
     }
@@ -54,10 +56,12 @@ public class PlaceServiceImpl implements PlaceService {
     @Override
     @Transactional
     public PlaceResponse update(Long placeId, PlaceRequest request) {
+        validatePlanningFields(request);
         Place place = getPlaceOrThrow(placeId);
         place.update(
                 request.name(), request.category(), request.region(), request.address(),
-                request.latitude(), request.longitude(), request.priceRange(), request.openHours()
+                request.latitude(), request.longitude(), request.priceRange(), request.openHours(),
+                request.openingTime(), request.closingTime(), request.estimatedCost(), request.recommendedVisitMinutes()
         );
         return PlaceResponse.from(place);
     }
@@ -77,5 +81,17 @@ public class PlaceServiceImpl implements PlaceService {
     private Place getPlaceOrThrow(Long placeId) {
         return placeRepository.findById(placeId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PLACE_NOT_FOUND));
+    }
+
+    private void validatePlanningFields(PlaceRequest request) {
+        if ((request.latitude() == null) != (request.longitude() == null)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "장소 좌표는 위도와 경도를 함께 입력해야 합니다.");
+        }
+        if ((request.openingTime() == null) != (request.closingTime() == null)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "영업 시작 시간과 종료 시간을 함께 입력해야 합니다.");
+        }
+        if (request.openingTime() != null && !request.closingTime().isAfter(request.openingTime())) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "영업 종료 시간은 시작 시간보다 늦어야 합니다.");
+        }
     }
 }

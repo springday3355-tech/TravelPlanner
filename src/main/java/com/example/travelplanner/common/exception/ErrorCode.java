@@ -45,7 +45,8 @@ public enum ErrorCode {
     // Planning (G0xx)
     PLANNING_PLACE_NOT_FOUND(HttpStatus.UNPROCESSABLE_ENTITY, "G001", "해당 도시에 일정으로 만들 수 있는 장소가 없습니다."),
     PLANNING_PLACE_REGION_MISMATCH(HttpStatus.BAD_REQUEST, "G002", "필수 장소가 여행 도시에 속하지 않습니다."),
-    PLANNING_REQUIRED_PLACE_OVER_CAPACITY(HttpStatus.BAD_REQUEST, "G003", "필수 장소 수가 일정에 배치할 수 있는 수를 초과합니다.");
+    PLANNING_REQUIRED_PLACE_OVER_CAPACITY(HttpStatus.BAD_REQUEST, "G003", "필수 장소 수가 일정에 배치할 수 있는 수를 초과합니다."),
+    PLANNING_REQUIRED_PLACE_UNSCHEDULABLE(HttpStatus.UNPROCESSABLE_ENTITY, "G004", "필수 장소를 영업시간과 일정 시간 안에 배치할 수 없습니다.");
 
     private final HttpStatus status;
     private final String code;

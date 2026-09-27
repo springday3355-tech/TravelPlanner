@@ -9,6 +9,9 @@ public record PlannedVisit(
         long placeId,
         int visitOrder,
         LocalTime startTime,
-        LocalTime endTime
+        LocalTime endTime,
+        int travelMinutesBefore,
+        double distanceKmBefore,
+        Integer estimatedCost
 ) {
 }

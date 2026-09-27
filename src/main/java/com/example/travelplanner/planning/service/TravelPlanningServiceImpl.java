@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
@@ -46,6 +47,12 @@ public class TravelPlanningServiceImpl implements TravelPlanningService {
         if (!dailyEndTime.isAfter(dailyStartTime)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "하루 종료 시간은 시작 시간보다 늦어야 합니다.");
         }
+        if (Duration.between(dailyStartTime, dailyEndTime).toMinutes() < 90) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "하루 일정 시간은 방문 장소 하나를 배치할 수 있도록 90분 이상이어야 합니다.");
+        }
+        if ((request.startLatitude() == null) != (request.startLongitude() == null)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "출발 좌표는 위도와 경도를 함께 입력해야 합니다.");
+        }
 
         Set<Long> requiredPlaceIds = immutableSet(request.requiredPlaceIds());
         Set<Long> excludedPlaceIds = immutableSet(request.excludedPlaceIds());
@@ -65,14 +72,14 @@ public class TravelPlanningServiceImpl implements TravelPlanningService {
         Set<PlaceCategory> preferredCategories = immutableSet(request.preferredCategories());
         PlanGenerationResult generation = scheduleGenerator.generate(new PlanGenerationContext(
                 request.startDate(), request.endDate(), dailyStartTime, dailyEndTime,
-                preferredCategories, request.companionType(), request.travelPace(), requiredPlaceIds, candidates
+                preferredCategories, request.companionType(), request.travelPace(), requiredPlaceIds, candidates,
+                request.budget(), request.startLatitude(), request.startLongitude()
         ));
-        if (generation.availableSlotCount() == 0) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "하루 일정 시간은 방문 장소 하나를 배치할 수 있도록 90분 이상이어야 합니다.");
-        }
-        if (!generation.visits().stream().map(PlannedVisit::placeId).collect(Collectors.toSet())
-                .containsAll(requiredPlaceIds)) {
+        if (requiredPlaceIds.size() > generation.availableSlotCount()) {
             throw new BusinessException(ErrorCode.PLANNING_REQUIRED_PLACE_OVER_CAPACITY);
+        }
+        if (!generation.unscheduledRequiredPlaceIds().isEmpty()) {
+            throw new BusinessException(ErrorCode.PLANNING_REQUIRED_PLACE_UNSCHEDULABLE);
         }
 
         ItinerarySummaryResponse itinerary = itineraryService.create(memberId, new CreateItineraryRequest(
@@ -90,13 +97,15 @@ public class TravelPlanningServiceImpl implements TravelPlanningService {
                     .forEach(visit -> itineraryService.addItem(
                             itinerary.id(), day.id(), memberId,
                             new ItineraryItemRequest(
-                                    visit.placeId(), visit.visitOrder(), visit.startTime(), visit.endTime(), "자동 생성된 초안"
+                                    visit.placeId(), visit.visitOrder(), visit.startTime(), visit.endTime(),
+                                    buildVisitMemo(visit)
                             )
                     ));
         }
 
         return new GeneratedTravelPlanResponse(
                 generation.generator(), generation.visits().size(), generation.availableSlotCount(),
+                generation.estimatedDistanceKm(), generation.estimatedTravelMinutes(), generation.estimatedCost(),
                 generation.warnings(), itineraryService.getDetail(itinerary.id(), memberId)
         );
     }
@@ -127,5 +136,10 @@ public class TravelPlanningServiceImpl implements TravelPlanningService {
 
     private <T> Set<T> immutableSet(Set<T> values) {
         return values == null ? Set.of() : Set.copyOf(values);
+    }
+
+    private String buildVisitMemo(PlannedVisit visit) {
+        String cost = visit.estimatedCost() == null ? "비용 미정" : "예상 " + visit.estimatedCost() + "원";
+        return "자동 생성된 초안 · 이동 " + visit.travelMinutesBefore() + "분 · " + cost;
     }
 }

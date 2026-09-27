@@ -5,7 +5,7 @@
 ## 1. 절대 임의로 결정하지 않는다 (사람 확인 필수)
 
 - ~~인증 방식(세션 vs JWT)~~ — JWT로 확정, 구현 완료(`docs/architecture/TravelPlanner-SA.md` 5.4절)
-- 검색엔진 선택(Elasticsearch vs Meilisearch) — 2단계 착수 전
+- 검색엔진 선택(Elasticsearch vs Meilisearch) — 외부 장소 데이터 규모와 검색 품질 요구 확정 전에는 선택하지 않음
 - 분산 락 도구(Redisson 등) — 3단계 착수 전
 - MySQL 운영 datasource 설정
 - `docs/domain/트래블메이커-정책정리본.md`에 "결정 대기"로 표시된 모든 항목

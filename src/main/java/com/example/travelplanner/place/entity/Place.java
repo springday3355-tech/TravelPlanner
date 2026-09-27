@@ -14,6 +14,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 
 /**
  * 장소(POI). docs/architecture/TravelPlanner-DB설계.md 2.6절과 정합.
@@ -54,8 +55,22 @@ public class Place extends BaseTimeEntity {
     @Column(name = "open_hours", length = 255)
     private String openHours;
 
+    @Column(name = "opening_time")
+    private LocalTime openingTime;
+
+    @Column(name = "closing_time")
+    private LocalTime closingTime;
+
+    @Column(name = "estimated_cost")
+    private Integer estimatedCost;
+
+    @Column(name = "recommended_visit_minutes")
+    private Integer recommendedVisitMinutes;
+
     private Place(String name, PlaceCategory category, String region, String address,
-                   BigDecimal latitude, BigDecimal longitude, String priceRange, String openHours) {
+                   BigDecimal latitude, BigDecimal longitude, String priceRange, String openHours,
+                   LocalTime openingTime, LocalTime closingTime, Integer estimatedCost,
+                   Integer recommendedVisitMinutes) {
         this.name = name;
         this.category = category;
         this.region = region;
@@ -64,15 +79,24 @@ public class Place extends BaseTimeEntity {
         this.longitude = longitude;
         this.priceRange = priceRange;
         this.openHours = openHours;
+        this.openingTime = openingTime;
+        this.closingTime = closingTime;
+        this.estimatedCost = estimatedCost;
+        this.recommendedVisitMinutes = recommendedVisitMinutes;
     }
 
     public static Place of(String name, PlaceCategory category, String region, String address,
-                            BigDecimal latitude, BigDecimal longitude, String priceRange, String openHours) {
-        return new Place(name, category, region, address, latitude, longitude, priceRange, openHours);
+                            BigDecimal latitude, BigDecimal longitude, String priceRange, String openHours,
+                            LocalTime openingTime, LocalTime closingTime, Integer estimatedCost,
+                            Integer recommendedVisitMinutes) {
+        return new Place(name, category, region, address, latitude, longitude, priceRange, openHours,
+                openingTime, closingTime, estimatedCost, recommendedVisitMinutes);
     }
 
     public void update(String name, PlaceCategory category, String region, String address,
-                        BigDecimal latitude, BigDecimal longitude, String priceRange, String openHours) {
+                        BigDecimal latitude, BigDecimal longitude, String priceRange, String openHours,
+                        LocalTime openingTime, LocalTime closingTime, Integer estimatedCost,
+                        Integer recommendedVisitMinutes) {
         this.name = name;
         this.category = category;
         this.region = region;
@@ -81,5 +105,9 @@ public class Place extends BaseTimeEntity {
         this.longitude = longitude;
         this.priceRange = priceRange;
         this.openHours = openHours;
+        this.openingTime = openingTime;
+        this.closingTime = closingTime;
+        this.estimatedCost = estimatedCost;
+        this.recommendedVisitMinutes = recommendedVisitMinutes;
     }
 }

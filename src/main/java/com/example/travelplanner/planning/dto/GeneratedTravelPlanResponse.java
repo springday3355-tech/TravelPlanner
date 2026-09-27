@@ -8,6 +8,9 @@ public record GeneratedTravelPlanResponse(
         String generator,
         int selectedPlaceCount,
         int availableSlotCount,
+        double estimatedDistanceKm,
+        int estimatedTravelMinutes,
+        int estimatedCost,
         List<String> warnings,
         ItineraryDetailResponse itinerary
 ) {

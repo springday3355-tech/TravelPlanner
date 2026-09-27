@@ -173,13 +173,27 @@
 성공 응답 (`data`): `Place[]`
 ```json
 [
-  { "id": 10, "name": "해운대 해수욕장", "category": "SIGHT", "region": "부산", "address": "...", "latitude": 35.1587, "longitude": 129.1604, "priceRange": null, "openHours": "24시간" }
+  {
+    "id": 10,
+    "name": "해운대 해수욕장",
+    "category": "SIGHT",
+    "region": "부산",
+    "address": "...",
+    "latitude": 35.1587,
+    "longitude": 129.1604,
+    "priceRange": null,
+    "openHours": "09:00~20:00",
+    "openingTime": "09:00",
+    "closingTime": "20:00",
+    "estimatedCost": 0,
+    "recommendedVisitMinutes": 90
+  }
 ]
 ```
 
 ### POST /api/places
 
-요청 body는 위 응답 형태에서 `id` 제외. **등록 권한(관리자 전용 vs 사용자 개방)이 정책 문서 3절에 결정 대기로 남아 있다. 현재 구현은 "인증된 사용자면 누구나 가능"(ADMIN 제한 없음)으로, 결정 대기 항목을 임의로 확정하지 않기 위한 상태다.** 정책이 확정되면 이 문서와 `SecurityConfig`/`PlaceController`를 함께 갱신한다.
+요청 body는 위 응답 형태에서 `id` 제외. 좌표와 영업시간은 각각 한 쌍으로 입력한다. `estimatedCost`는 0 이상, `recommendedVisitMinutes`는 30~480분이다. **등록 권한(관리자 전용 vs 사용자 개방)이 정책 문서 3절에 결정 대기로 남아 있다. 현재 구현은 "인증된 사용자면 누구나 가능"(ADMIN 제한 없음)으로, 결정 대기 항목을 임의로 확정하지 않기 위한 상태다.** 정책이 확정되면 이 문서와 `SecurityConfig`/`PlaceController`를 함께 갱신한다.
 
 ## 4. 여행 계획 생성 (planning)
 
@@ -201,25 +215,34 @@
   "dailyStartTime": "09:00",
   "dailyEndTime": "18:00",
   "requiredPlaceIds": [10],
-  "excludedPlaceIds": [20]
+  "excludedPlaceIds": [20],
+  "startLatitude": 35.1587,
+  "startLongitude": 129.1604
 }
 ```
 
 - `companionType`: `SOLO`, `COUPLE`, `FAMILY`, `FRIENDS`
 - `travelPace`: `RELAXED`(하루 최대 3곳), `BALANCED`(4곳), `ACTIVE`(5곳)
 - 동행 형태별 하루 상한: `FAMILY` 3곳, `COUPLE` 4곳, `SOLO`·`FRIENDS` 5곳. 여행 속도 상한과 비교해 더 작은 값을 적용한다.
-- 하루 시간의 기본값은 `09:00`~`18:00`이다. 장소당 90분과 장소 사이 30분을 배정한다.
-- 필수 장소 → 선호 카테고리 → 장소 ID 순서로 후보를 정렬한 뒤 날짜별로 배치한다.
+- 하루 시간의 기본값은 `09:00`~`18:00`이다. 체류시간 미입력 시 카테고리 기본값(`FOOD`·`SIGHT` 90분, `CAFE`·`ACCOMMODATION` 60분)을 사용한다.
+- 출발 좌표는 선택값이지만 위도·경도를 함께 입력해야 한다. 입력 시 첫 장소까지의 이동량도 계산한다.
+- 필수 장소 → 선호 카테고리 → 실제 방문 가능 시작 시각 → 거리 순으로 후보를 선택한다.
+- 좌표가 있으면 Haversine 직선거리와 평균 시속 20km로 이동시간을 추정한다. 좌표가 없는 장소 사이 이동시간은 30분으로 계산한다.
+- 선택 장소가 예산을 초과하면 제외한다. 필수 장소는 예산보다 우선하며, 초과 사실을 `warnings`로 반환한다.
+- 영업시간 안에 배치할 수 없는 필수 장소가 있으면 전체 생성을 거부한다.
 - 여행 기간은 최대 14일이다. 생성·일자·방문 항목 저장은 하나의 트랜잭션으로 처리한다.
-- 현재 `RULE_BASED_V1`은 실제 이동 시간, 영업시간, 장소별 비용을 반영하지 않으며 응답 `warnings`에 이 제약을 알린다. 예산은 생성된 일정 정보에 저장된다.
+- `ROUTE_AWARE_V2`는 실제 도로망·교통상황이 아닌 직선거리 추정치를 사용한다. 요일별 영업시간은 아직 지원하지 않는다.
 
 성공 응답 (`data`):
 ```json
 {
-  "generator": "RULE_BASED_V1",
+  "generator": "ROUTE_AWARE_V2",
   "selectedPlaceCount": 6,
   "availableSlotCount": 12,
-  "warnings": ["등록된 장소가 부족해 일부 시간대는 비워 두었습니다."],
+  "estimatedDistanceKm": 12.35,
+  "estimatedTravelMinutes": 48,
+  "estimatedCost": 85000,
+  "warnings": ["이동 시간은 직선거리와 평균 시속 20km를 기준으로 한 추정치입니다."],
   "itinerary": { "id": 1, "title": "부산 2박 3일", "days": [] }
 }
 ```
@@ -228,6 +251,7 @@
 - `G001`(422): 해당 도시에 후보 장소 없음
 - `G002`(400): 필수 장소가 여행 도시와 다름
 - `G003`(400): 필수 장소 수가 배치 가능 수를 초과
+- `G004`(422): 필수 장소를 영업시간과 일정 시간 안에 배치할 수 없음
 
 ## 5. 공통 DTO 참고
 
@@ -238,7 +262,7 @@
 | `ItineraryDay` | id, dayNumber, date |
 | `ItineraryItem` | id, placeId, placeName, visitOrder, startTime, endTime, memo |
 | `Participant` | id, memberId, nickname, participantRole |
-| `Place` | id, name, category, region, address, latitude, longitude, priceRange, openHours |
+| `Place` | id, name, category, region, address, latitude, longitude, priceRange, openHours, openingTime, closingTime, estimatedCost, recommendedVisitMinutes |
 
 ## 6. 이 문서에서 결정 대기로 남긴 항목
 
