@@ -2,6 +2,7 @@ package com.example.travelplanner.itinerary.dto;
 
 import com.example.travelplanner.itinerary.entity.ItineraryItem;
 
+import java.math.BigDecimal;
 import java.time.LocalTime;
 
 public record ItineraryItemResponse(
@@ -11,7 +12,10 @@ public record ItineraryItemResponse(
         Integer visitOrder,
         LocalTime startTime,
         LocalTime endTime,
-        String memo
+        String memo,
+        Integer travelMinutesBefore,
+        BigDecimal distanceKmBefore,
+        Integer estimatedCost
 ) {
     public static ItineraryItemResponse of(ItineraryItem item, String placeName) {
         return new ItineraryItemResponse(
@@ -21,7 +25,10 @@ public record ItineraryItemResponse(
                 item.getVisitOrder(),
                 item.getStartTime(),
                 item.getEndTime(),
-                item.getMemo()
+                item.getMemo(),
+                item.getTravelMinutesBefore(),
+                item.getDistanceKmBefore(),
+                item.getEstimatedCost()
         );
     }
 }

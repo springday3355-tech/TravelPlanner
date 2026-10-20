@@ -212,7 +212,8 @@ public class ItineraryServiceImpl implements ItineraryService {
         }
 
         ItineraryItem item = ItineraryItem.create(
-                day.getId(), request.placeId(), request.visitOrder(), request.startTime(), request.endTime(), request.memo()
+                day.getId(), request.placeId(), request.visitOrder(), request.startTime(), request.endTime(), request.memo(),
+                request.travelMinutesBefore(), request.distanceKmBefore(), request.estimatedCost()
         );
         ItineraryItem saved = itineraryItemRepository.save(item);
         return ItineraryItemResponse.of(saved, place.name());
@@ -232,7 +233,10 @@ public class ItineraryServiceImpl implements ItineraryService {
 
         ItineraryItem item = itineraryItemRepository.findByIdAndItineraryDayId(itemId, dayId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ITINERARY_ITEM_NOT_FOUND));
-        item.update(request.placeId(), request.visitOrder(), request.startTime(), request.endTime(), request.memo());
+        item.update(
+                request.placeId(), request.visitOrder(), request.startTime(), request.endTime(), request.memo(),
+                request.travelMinutesBefore(), request.distanceKmBefore(), request.estimatedCost()
+        );
 
         return ItineraryItemResponse.of(item, place.name());
     }

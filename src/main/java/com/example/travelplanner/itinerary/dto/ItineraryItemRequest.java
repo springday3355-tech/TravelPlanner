@@ -1,8 +1,11 @@
 package com.example.travelplanner.itinerary.dto;
 
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 
+import java.math.BigDecimal;
 import java.time.LocalTime;
 
 /**
@@ -13,6 +16,9 @@ public record ItineraryItemRequest(
         @NotNull @Positive Integer visitOrder,
         LocalTime startTime,
         LocalTime endTime,
-        String memo
+        String memo,
+        @PositiveOrZero Integer travelMinutesBefore,
+        @DecimalMin("0.0") BigDecimal distanceKmBefore,
+        @PositiveOrZero Integer estimatedCost
 ) {
 }

@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
@@ -98,7 +99,8 @@ public class TravelPlanningServiceImpl implements TravelPlanningService {
                             itinerary.id(), day.id(), memberId,
                             new ItineraryItemRequest(
                                     visit.placeId(), visit.visitOrder(), visit.startTime(), visit.endTime(),
-                                    buildVisitMemo(visit)
+                                    "자동 생성된 초안", visit.travelMinutesBefore(),
+                                    BigDecimal.valueOf(visit.distanceKmBefore()), visit.estimatedCost()
                             )
                     ));
         }
@@ -138,8 +140,4 @@ public class TravelPlanningServiceImpl implements TravelPlanningService {
         return values == null ? Set.of() : Set.copyOf(values);
     }
 
-    private String buildVisitMemo(PlannedVisit visit) {
-        String cost = visit.estimatedCost() == null ? "비용 미정" : "예상 " + visit.estimatedCost() + "원";
-        return "자동 생성된 초안 · 이동 " + visit.travelMinutesBefore() + "분 · " + cost;
-    }
 }

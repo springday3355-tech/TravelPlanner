@@ -12,6 +12,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalTime;
 
 /**
@@ -48,24 +49,51 @@ public class ItineraryItem extends BaseTimeEntity {
     @Column(length = 500)
     private String memo;
 
-    private ItineraryItem(Long itineraryDayId, Long placeId, Integer visitOrder, LocalTime startTime, LocalTime endTime, String memo) {
+    @Column(name = "travel_minutes_before")
+    private Integer travelMinutesBefore;
+
+    @Column(name = "distance_km_before", precision = 10, scale = 2)
+    private BigDecimal distanceKmBefore;
+
+    @Column(name = "estimated_cost")
+    private Integer estimatedCost;
+
+    private ItineraryItem(
+            Long itineraryDayId, Long placeId, Integer visitOrder, LocalTime startTime, LocalTime endTime,
+            String memo, Integer travelMinutesBefore, BigDecimal distanceKmBefore, Integer estimatedCost
+    ) {
         this.itineraryDayId = itineraryDayId;
         this.placeId = placeId;
         this.visitOrder = visitOrder;
         this.startTime = startTime;
         this.endTime = endTime;
         this.memo = memo;
+        this.travelMinutesBefore = travelMinutesBefore;
+        this.distanceKmBefore = distanceKmBefore;
+        this.estimatedCost = estimatedCost;
     }
 
-    public static ItineraryItem create(Long itineraryDayId, Long placeId, Integer visitOrder, LocalTime startTime, LocalTime endTime, String memo) {
-        return new ItineraryItem(itineraryDayId, placeId, visitOrder, startTime, endTime, memo);
+    public static ItineraryItem create(
+            Long itineraryDayId, Long placeId, Integer visitOrder, LocalTime startTime, LocalTime endTime,
+            String memo, Integer travelMinutesBefore, BigDecimal distanceKmBefore, Integer estimatedCost
+    ) {
+        return new ItineraryItem(
+                itineraryDayId, placeId, visitOrder, startTime, endTime, memo,
+                travelMinutesBefore, distanceKmBefore, estimatedCost
+        );
     }
 
-    public void update(Long placeId, Integer visitOrder, LocalTime startTime, LocalTime endTime, String memo) {
+    public void update(
+            Long placeId, Integer visitOrder, LocalTime startTime, LocalTime endTime,
+            String memo, Integer travelMinutesBefore, BigDecimal distanceKmBefore, Integer estimatedCost
+    ) {
         this.placeId = placeId;
         this.visitOrder = visitOrder;
         this.startTime = startTime;
         this.endTime = endTime;
         this.memo = memo;
+        this.travelMinutesBefore = travelMinutesBefore;
+        this.distanceKmBefore = distanceKmBefore;
+        this.estimatedCost = estimatedCost;
     }
 }
