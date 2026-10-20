@@ -42,6 +42,7 @@
 ### 5.3 장소/검색 (place) — 1단계 (기본 CRUD) [구현 완료], 이후 검색 고도화
 - 1단계: 장소(POI) 정보의 기본 CRUD, 지역/카테고리 기준 단순 필터링(JPA 쿼리).
 - 2단계: 일정 생성에 필요한 좌표, 영업 시작·종료 시간, 예상 비용, 권장 체류시간을 구조화해 저장한다.
+- 3단계 기본 공급자로 Google Places API (New)를 사용한다. 선정 근거와 연동 원칙은 `docs/architecture/TravelPlanner-외부장소API-선정.md`를 따른다.
 - 여행 계획 흐름에서 필요한 장소 데이터와 검색 품질을 확인한 뒤 Elasticsearch/Meilisearch 도입 여부를 결정한다.
 
 ### 5.4 실시간/채팅 (realtime) — 여행 계획 흐름 검증 이후
@@ -78,6 +79,8 @@
 ## 10. 관련 문서
 
 - 2단계 완료 보고: `docs/product/TravelPlanner-2단계-완료보고.md`
+- 외부 장소 API 선정: `docs/architecture/TravelPlanner-외부장소API-선정.md`
+- 후속 단계 로드맵: `docs/product/TravelPlanner-후속로드맵.md`
 - 아키텍처/구현 규칙: `docs/architecture/TravelPlanner-SA.md` (경량본: `docs/lightweight/TravelPlanner-SA-경량본.md`)
 - API 명세: `docs/architecture/TravelPlanner-API명세.md`
 - DB 설계: `docs/architecture/TravelPlanner-DB설계.md`
