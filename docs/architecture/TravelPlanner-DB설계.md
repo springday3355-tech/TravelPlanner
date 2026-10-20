@@ -70,6 +70,9 @@ ItineraryItem (N) ── (1) Place
 | start_time | TIME | NULL | |
 | end_time | TIME | NULL | |
 | memo | VARCHAR(500) | NULL | |
+| travel_minutes_before | INT | NULL | 직전 위치에서 이 장소까지의 예상 이동시간(분) |
+| distance_km_before | DECIMAL(10,2) | NULL | 직전 위치에서 이 장소까지의 예상 거리(km) |
+| estimated_cost | INT | NULL | 이 장소에서 사용할 1인 기준 예상 비용(원) |
 
 - 유니크 제약: (itinerary_day_id, visit_order)
 - 일정 항목에서 참조 중인 장소는 삭제할 수 없다.

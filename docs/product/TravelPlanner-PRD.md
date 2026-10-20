@@ -77,6 +77,7 @@
 
 ## 10. 관련 문서
 
+- 2단계 완료 보고: `docs/product/TravelPlanner-2단계-완료보고.md`
 - 아키텍처/구현 규칙: `docs/architecture/TravelPlanner-SA.md` (경량본: `docs/lightweight/TravelPlanner-SA-경량본.md`)
 - API 명세: `docs/architecture/TravelPlanner-API명세.md`
 - DB 설계: `docs/architecture/TravelPlanner-DB설계.md`
