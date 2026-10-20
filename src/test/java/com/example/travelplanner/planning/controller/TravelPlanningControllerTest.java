@@ -171,7 +171,7 @@ class TravelPlanningControllerTest extends ControllerTestSupport {
         request.put("startLatitude", "37.5000");
         request.put("startLongitude", "127.0000");
 
-        mockMvc.perform(post("/api/travel-plans/generate")
+        MvcResult result = mockMvc.perform(post("/api/travel-plans/generate")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -182,8 +182,21 @@ class TravelPlanningControllerTest extends ControllerTestSupport {
                 .andExpect(jsonPath("$.data.estimatedTravelMinutes").isNumber())
                 .andExpect(jsonPath("$.data.estimatedDistanceKm").isNumber())
                 .andExpect(jsonPath("$.data.itinerary.days[0].items[0].placeId").value(near))
+                .andExpect(jsonPath("$.data.itinerary.days[0].items[0].travelMinutesBefore").isNumber())
+                .andExpect(jsonPath("$.data.itinerary.days[0].items[0].distanceKmBefore").isNumber())
+                .andExpect(jsonPath("$.data.itinerary.days[0].items[0].estimatedCost").value(10000))
                 .andExpect(jsonPath("$.data.itinerary.days[0].items[1].placeId").value(middle))
-                .andExpect(jsonPath("$.data.itinerary.days[0].items[2].placeId").value(far));
+                .andExpect(jsonPath("$.data.itinerary.days[0].items[2].placeId").value(far))
+                .andReturn();
+
+        long itineraryId = objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .get("data").get("itinerary").get("id").asLong();
+        mockMvc.perform(get("/api/itineraries/" + itineraryId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.days[0].items[0].travelMinutesBefore").isNumber())
+                .andExpect(jsonPath("$.data.days[0].items[0].distanceKmBefore").isNumber())
+                .andExpect(jsonPath("$.data.days[0].items[0].estimatedCost").value(10000));
     }
 
     @Test
@@ -213,9 +226,7 @@ class TravelPlanningControllerTest extends ControllerTestSupport {
                 .andExpect(jsonPath("$.data.selectedPlaceCount").value(1))
                 .andExpect(jsonPath("$.data.estimatedCost").value(100000))
                 .andExpect(jsonPath("$.data.itinerary.days[0].items[0].placeId").value(expensive))
-                .andExpect(jsonPath("$.data.itinerary.days[0].items[0].memo").value(
-                        org.hamcrest.Matchers.containsString("예상 100000원")
-                ))
+                .andExpect(jsonPath("$.data.itinerary.days[0].items[0].estimatedCost").value(100000))
                 .andExpect(jsonPath("$.data.warnings[*]").value(
                         org.hamcrest.Matchers.hasItem("필수 장소를 포함하기 위해 예상 비용이 입력 예산을 초과했습니다.")
                 ));
