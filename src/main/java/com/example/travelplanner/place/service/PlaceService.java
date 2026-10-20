@@ -5,6 +5,7 @@ import com.example.travelplanner.place.dto.PlaceResponse;
 import com.example.travelplanner.place.entity.PlaceCategory;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * 다른 도메인(itinerary)은 이 인터페이스를 통해서만 장소 정보에 접근한다(SA 문서 3절).
@@ -12,6 +13,8 @@ import java.util.List;
 public interface PlaceService {
 
     List<PlaceResponse> search(String region, PlaceCategory category);
+
+    List<PlaceResponse> searchForPlanning(String region, Set<PlaceCategory> preferredCategories);
 
     PlaceResponse getPlace(Long placeId);
 
