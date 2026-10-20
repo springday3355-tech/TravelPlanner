@@ -3,7 +3,9 @@ package com.example.travelplanner.place.dto;
 import com.example.travelplanner.place.entity.Place;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 
 public record PlaceResponse(
         Long id,
@@ -18,7 +20,11 @@ public record PlaceResponse(
         LocalTime openingTime,
         LocalTime closingTime,
         Integer estimatedCost,
-        Integer recommendedVisitMinutes
+        Integer recommendedVisitMinutes,
+        String source,
+        String externalId,
+        LocalDateTime lastSyncedAt,
+        List<OpeningHourResponse> openingHours
 ) {
     public static PlaceResponse from(Place place) {
         return new PlaceResponse(
@@ -34,7 +40,11 @@ public record PlaceResponse(
                 place.getOpeningTime(),
                 place.getClosingTime(),
                 place.getEstimatedCost(),
-                place.getRecommendedVisitMinutes()
+                place.getRecommendedVisitMinutes(),
+                place.getSource().name(),
+                place.getExternalId(),
+                place.getLastSyncedAt(),
+                place.getOpeningHours().stream().map(OpeningHourResponse::from).toList()
         );
     }
 }

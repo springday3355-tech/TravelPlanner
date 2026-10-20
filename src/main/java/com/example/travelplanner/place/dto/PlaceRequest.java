@@ -11,6 +11,7 @@ import jakarta.validation.constraints.PositiveOrZero;
 
 import java.math.BigDecimal;
 import java.time.LocalTime;
+import java.util.List;
 
 public record PlaceRequest(
         @NotBlank String name,
@@ -24,6 +25,7 @@ public record PlaceRequest(
         LocalTime openingTime,
         LocalTime closingTime,
         @PositiveOrZero Integer estimatedCost,
-        @Min(30) @Max(480) Integer recommendedVisitMinutes
+        @Min(30) @Max(480) Integer recommendedVisitMinutes,
+        List<@jakarta.validation.Valid OpeningHourRequest> openingHours
 ) {
 }

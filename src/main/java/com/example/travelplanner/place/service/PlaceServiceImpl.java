@@ -6,12 +6,14 @@ import com.example.travelplanner.place.dto.PlaceRequest;
 import com.example.travelplanner.place.dto.PlaceResponse;
 import com.example.travelplanner.place.entity.Place;
 import com.example.travelplanner.place.entity.PlaceCategory;
+import com.example.travelplanner.place.entity.PlaceOpeningHour;
 import com.example.travelplanner.place.repository.PlaceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +22,7 @@ public class PlaceServiceImpl implements PlaceService {
 
     private final PlaceRepository placeRepository;
     private final PlaceUsageChecker placeUsageChecker;
+    private final PlaceImportService placeImportService;
 
     @Override
     public List<PlaceResponse> search(String region, PlaceCategory category) {
@@ -37,6 +40,15 @@ public class PlaceServiceImpl implements PlaceService {
     }
 
     @Override
+    public List<PlaceResponse> searchForPlanning(String region, Set<PlaceCategory> preferredCategories) {
+        List<PlaceResponse> places = search(region, null);
+        if (!places.isEmpty()) {
+            return places;
+        }
+        return placeImportService.importForPlanning(region, preferredCategories);
+    }
+
+    @Override
     public PlaceResponse getPlace(Long placeId) {
         return PlaceResponse.from(getPlaceOrThrow(placeId));
     }
@@ -48,7 +60,8 @@ public class PlaceServiceImpl implements PlaceService {
         Place place = Place.of(
                 request.name(), request.category(), request.region(), request.address(),
                 request.latitude(), request.longitude(), request.priceRange(), request.openHours(),
-                request.openingTime(), request.closingTime(), request.estimatedCost(), request.recommendedVisitMinutes()
+                request.openingTime(), request.closingTime(), request.estimatedCost(), request.recommendedVisitMinutes(),
+                toOpeningHours(request)
         );
         return PlaceResponse.from(placeRepository.save(place));
     }
@@ -61,7 +74,8 @@ public class PlaceServiceImpl implements PlaceService {
         place.update(
                 request.name(), request.category(), request.region(), request.address(),
                 request.latitude(), request.longitude(), request.priceRange(), request.openHours(),
-                request.openingTime(), request.closingTime(), request.estimatedCost(), request.recommendedVisitMinutes()
+                request.openingTime(), request.closingTime(), request.estimatedCost(), request.recommendedVisitMinutes(),
+                toOpeningHours(request)
         );
         return PlaceResponse.from(place);
     }
@@ -93,5 +107,27 @@ public class PlaceServiceImpl implements PlaceService {
         if (request.openingTime() != null && !request.closingTime().isAfter(request.openingTime())) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "영업 종료 시간은 시작 시간보다 늦어야 합니다.");
         }
+        if (request.openingHours() != null) {
+            request.openingHours().forEach(openingHour -> {
+                if (!openingHour.closesNextDay() && !openingHour.closingTime().isAfter(openingHour.openingTime())) {
+                    throw new BusinessException(
+                            ErrorCode.INVALID_INPUT_VALUE,
+                            "같은 날 종료되는 영업시간은 종료 시간이 시작 시간보다 늦어야 합니다."
+                    );
+                }
+            });
+        }
+    }
+
+    private List<PlaceOpeningHour> toOpeningHours(PlaceRequest request) {
+        if (request.openingHours() == null) {
+            return List.of();
+        }
+        return request.openingHours().stream()
+                .map(openingHour -> PlaceOpeningHour.of(
+                        openingHour.dayOfWeek(), openingHour.openingTime(),
+                        openingHour.closingTime(), openingHour.closesNextDay()
+                ))
+                .toList();
     }
 }
