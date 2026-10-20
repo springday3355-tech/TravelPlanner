@@ -1,6 +1,7 @@
 package com.example.travelplanner.planning.service;
 
 import com.example.travelplanner.place.dto.PlaceResponse;
+import com.example.travelplanner.place.dto.OpeningHourResponse;
 import com.example.travelplanner.place.entity.PlaceCategory;
 import org.springframework.stereotype.Component;
 
@@ -42,7 +43,7 @@ public class RouteAwareScheduleGenerator implements ScheduleGenerator {
             Position position = Position.start(context.startLatitude(), context.startLongitude());
 
             for (int order = 1; order <= visitsPerDay; order++) {
-                CandidateChoice choice = chooseCandidate(remaining, context, position, cursor, totalCost);
+                CandidateChoice choice = chooseCandidate(remaining, context, position, date, cursor, totalCost);
                 if (choice == null) {
                     break;
                 }
@@ -75,6 +76,7 @@ public class RouteAwareScheduleGenerator implements ScheduleGenerator {
             List<PlaceResponse> remaining,
             PlanGenerationContext context,
             Position position,
+            LocalDate date,
             LocalTime cursor,
             int currentCost
     ) {
@@ -82,7 +84,7 @@ public class RouteAwareScheduleGenerator implements ScheduleGenerator {
         return remaining.stream()
                 .filter(place -> context.requiredPlaceIds().contains(place.id())
                         || !exceedsBudget(context.budget(), currentCost, place.estimatedCost()))
-                .map(place -> toChoice(place, context, position, cursor))
+                .map(place -> toChoice(place, context, position, date, cursor))
                 .filter(Objects::nonNull)
                 .sorted(Comparator
                         .comparing((CandidateChoice choice) -> !context.requiredPlaceIds().contains(choice.place().id()))
@@ -98,6 +100,7 @@ public class RouteAwareScheduleGenerator implements ScheduleGenerator {
             PlaceResponse place,
             PlanGenerationContext context,
             Position position,
+            LocalDate date,
             LocalTime cursor
     ) {
         double distanceKm = calculateDistance(position, place);
@@ -106,15 +109,61 @@ public class RouteAwareScheduleGenerator implements ScheduleGenerator {
         if (travelMinutes > 0 && arrival.isBefore(cursor)) {
             return null;
         }
-        LocalTime start = laterOf(arrival, place.openingTime());
-        LocalTime end = start.plusMinutes(visitDuration(place));
-        if (!end.isAfter(start) || end.isAfter(context.dailyEndTime())) {
+        VisitTime visitTime = findVisitTime(place, date, arrival, context.dailyEndTime());
+        if (visitTime == null) {
             return null;
         }
-        if (place.closingTime() != null && end.isAfter(place.closingTime())) {
+        return new CandidateChoice(place, visitTime.start(), visitTime.end(), travelMinutes, distanceKm);
+    }
+
+    private VisitTime findVisitTime(
+            PlaceResponse place,
+            LocalDate date,
+            LocalTime arrival,
+            LocalTime dailyEndTime
+    ) {
+        int duration = visitDuration(place);
+        if (place.openingHours() == null || place.openingHours().isEmpty()) {
+            LocalTime start = laterOf(arrival, place.openingTime());
+            LocalTime end = start.plusMinutes(duration);
+            if (!end.isAfter(start) || end.isAfter(dailyEndTime)) {
+                return null;
+            }
+            if (place.closingTime() != null && end.isAfter(place.closingTime())) {
+                return null;
+            }
+            return new VisitTime(start, end);
+        }
+
+        return openingWindows(place.openingHours(), date).stream()
+                .map(window -> fitVisit(window, arrival, dailyEndTime, duration))
+                .filter(Objects::nonNull)
+                .min(Comparator.comparing(VisitTime::start))
+                .orElse(null);
+    }
+
+    private List<OpeningWindow> openingWindows(List<OpeningHourResponse> openingHours, LocalDate date) {
+        List<OpeningWindow> windows = new ArrayList<>();
+        openingHours.stream()
+                .filter(hours -> hours.dayOfWeek() == date.getDayOfWeek())
+                .forEach(hours -> windows.add(new OpeningWindow(
+                        hours.openingTime(),
+                        hours.closesNextDay() ? LocalTime.MAX : hours.closingTime()
+                )));
+        openingHours.stream()
+                .filter(OpeningHourResponse::closesNextDay)
+                .filter(hours -> hours.dayOfWeek() == date.minusDays(1).getDayOfWeek())
+                .forEach(hours -> windows.add(new OpeningWindow(LocalTime.MIN, hours.closingTime())));
+        return windows;
+    }
+
+    private VisitTime fitVisit(OpeningWindow window, LocalTime arrival, LocalTime dailyEndTime, int duration) {
+        LocalTime start = laterOf(arrival, window.openingTime());
+        LocalTime end = start.plusMinutes(duration);
+        if (!end.isAfter(start) || end.isAfter(dailyEndTime) || end.isAfter(window.closingTime())) {
             return null;
         }
-        return new CandidateChoice(place, start, end, travelMinutes, distanceKm);
+        return new VisitTime(start, end);
     }
 
     private List<String> buildWarnings(
@@ -239,5 +288,11 @@ public class RouteAwareScheduleGenerator implements ScheduleGenerator {
             int travelMinutes,
             double distanceKm
     ) {
+    }
+
+    private record OpeningWindow(LocalTime openingTime, LocalTime closingTime) {
+    }
+
+    private record VisitTime(LocalTime start, LocalTime end) {
     }
 }

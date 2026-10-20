@@ -8,7 +8,8 @@
 - 1단계 CRUD 완료: 회원/JWT 인증, 일정·일자·방문 항목·동행자, 장소
 - 1단계 완료: 여행 조건 입력 → 장소 후보 선정 → 날짜별 초안 생성 → 일정 저장
 - 2단계 완료: 좌표 기반 동선, 구조화된 영업시간·예상 비용·체류시간을 반영하고 방문별 추정값을 저장하는 `ROUTE_AWARE_V2`
-- 이후 목표: 외부 장소 데이터 공급자와 검색 방식 결정, 실제 도로 이동시간 연동, AI 대화형 수정
+- 3단계 완료: Google Places Text Search·Place Details 연동, 외부 장소 중복 동기화, 요일별·자정 이후 영업시간 반영
+- 이후 목표: 실제 도로 이동시간 연동, AI 대화형 수정
 
 ## 기술 스택
 
@@ -56,6 +57,7 @@ macOS/Linux:
 - `POST /api/travel-plans/generate`: 여행 조건으로 일정 초안 생성·저장
 - `/api/itineraries`: 일정과 동행자, 일자, 방문 항목 관리
 - `/api/places`: 장소 등록, 조회, 수정, 삭제
+- `POST /api/places/import`: Google Places의 실제 장소 검색·동기화
 - `GET /api/itineraries/shared/{shareToken}`: 공유 일정 조회
 
 세부 계약은 [`docs/architecture/TravelPlanner-API명세.md`](docs/architecture/TravelPlanner-API명세.md)를 참고하세요.
@@ -63,6 +65,8 @@ macOS/Linux:
 ## 설정
 
 `src/main/resources/application.properties`의 JWT 비밀키는 로컬 개발용입니다. 배포 환경에서는 외부 비밀값으로 교체해야 합니다. 운영 데이터베이스와 배포 구성은 여행 계획의 핵심 흐름을 검증한 뒤 확정합니다.
+
+Google Places를 사용하려면 `.env.example`을 참고해 `GOOGLE_PLACES_ENABLED=true`와 `GOOGLE_PLACES_API_KEY`를 환경변수로 설정합니다. 키가 없으면 기존 DB 장소만 사용하며 외부 가져오기 API는 `L003`을 반환합니다.
 
 ## 문서
 

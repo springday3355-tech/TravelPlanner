@@ -150,6 +150,43 @@ class TravelPlanningControllerTest extends ControllerTestSupport {
     }
 
     @Test
+    @DisplayName("요일별 영업시간을 사용해 해당 날짜의 방문 시작 시간을 조정한다")
+    void generate_usesWeeklyOpeningHours() throws Exception {
+        String token = signup("planner-weekly-hours@example.com");
+        LocalDate startDate = LocalDate.now().plusDays(100);
+        Map<String, Object> place = new LinkedHashMap<>();
+        place.put("name", "요일별 개장 장소");
+        place.put("category", "SIGHT");
+        place.put("region", "계획도시H");
+        place.put("recommendedVisitMinutes", 60);
+        place.put("openingHours", List.of(Map.of(
+                "dayOfWeek", startDate.getDayOfWeek().name(),
+                "openingTime", "13:00",
+                "closingTime", "17:00",
+                "closesNextDay", false
+        )));
+        MvcResult placeResult = mockMvc.perform(post("/api/places")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(place)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long placeId = objectMapper.readTree(placeResult.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .get("data").get("id").asLong();
+
+        Map<String, Object> request = validRequest("계획도시H", startDate, startDate);
+        request.put("requiredPlaceIds", List.of(placeId));
+
+        mockMvc.perform(post("/api/travel-plans/generate")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.itinerary.days[0].items[0].startTime").value("13:00:00"))
+                .andExpect(jsonPath("$.data.itinerary.days[0].items[0].endTime").value("14:00:00"));
+    }
+
+    @Test
     @DisplayName("출발 좌표에서 가까우면서 바로 방문 가능한 장소부터 동선을 구성한다")
     void generate_ordersPlacesByAvailabilityAndDistance() throws Exception {
         String token = signup("planner-route@example.com");

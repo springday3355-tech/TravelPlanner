@@ -86,6 +86,26 @@ class PlaceControllerTest extends ControllerTestSupport {
     }
 
     @Test
+    @DisplayName("Google Places 키가 없으면 외부 장소 가져오기는 L003을 반환한다")
+    void importPlaces_withoutProviderConfiguration_isUnavailable() throws Exception {
+        String token = AuthTestHelper.signupAndGetToken(
+                mockMvc, objectMapper, "place-import@example.com", "password123", "장소가져오기"
+        );
+        String body = objectMapper.writeValueAsString(Map.of(
+                "query", "관광 명소",
+                "region", "서울",
+                "limit", 5
+        ));
+
+        mockMvc.perform(post("/api/places/import")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("L003"));
+    }
+
+    @Test
     @DisplayName("일정에서 사용 중인 장소는 삭제할 수 없다")
     void delete_inUsePlace_isRejected() throws Exception {
         String token = AuthTestHelper.signupAndGetToken(

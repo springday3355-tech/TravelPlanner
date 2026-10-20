@@ -41,6 +41,8 @@ public enum ErrorCode {
     // Place (L0xx)
     PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "L001", "존재하지 않는 장소입니다."),
     PLACE_IN_USE(HttpStatus.CONFLICT, "L002", "일정에서 사용 중인 장소는 삭제할 수 없습니다."),
+    PLACE_PROVIDER_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "L003", "외부 장소 서비스가 설정되지 않았습니다."),
+    PLACE_PROVIDER_FAILED(HttpStatus.BAD_GATEWAY, "L004", "외부 장소 서비스 호출에 실패했습니다."),
 
     // Planning (G0xx)
     PLANNING_PLACE_NOT_FOUND(HttpStatus.UNPROCESSABLE_ENTITY, "G001", "해당 도시에 일정으로 만들 수 있는 장소가 없습니다."),
