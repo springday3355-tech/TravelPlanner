@@ -54,6 +54,9 @@ erDiagram
         time start_time
         time end_time
         varchar memo
+        int travel_minutes_before
+        decimal distance_km_before
+        int estimated_cost
         datetime created_at
         datetime updated_at
     }

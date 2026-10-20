@@ -151,10 +151,19 @@
 
 요청:
 ```json
-{ "placeId": 10, "visitOrder": 1, "startTime": "10:00", "endTime": "11:30", "memo": "예약 필요" }
+{
+  "placeId": 10,
+  "visitOrder": 1,
+  "startTime": "10:00",
+  "endTime": "11:30",
+  "memo": "예약 필요",
+  "travelMinutesBefore": 20,
+  "distanceKmBefore": 5.4,
+  "estimatedCost": 15000
+}
 ```
 
-같은 일자 안에서 `visitOrder`는 중복될 수 없고, 시작·종료 시간이 모두 있으면 종료 시간이 시작 시간보다 늦어야 한다.
+같은 일자 안에서 `visitOrder`는 중복될 수 없고, 시작·종료 시간이 모두 있으면 종료 시간이 시작 시간보다 늦어야 한다. 이동시간·거리·예상비용은 선택값이며 0 이상이어야 한다. 자동 생성 일정은 세 값을 구조화해 저장하므로 이후 상세 조회에서도 그대로 반환한다.
 
 ## 3. 장소 (place)
 
@@ -260,7 +269,7 @@
 | `ItinerarySummary` | id, title, city, startDate, endDate, status, myRole |
 | `ItineraryDetail` | ItinerarySummary + budget, shareToken(nullable), days[](ItineraryDay + items[]), participants[] |
 | `ItineraryDay` | id, dayNumber, date |
-| `ItineraryItem` | id, placeId, placeName, visitOrder, startTime, endTime, memo |
+| `ItineraryItem` | id, placeId, placeName, visitOrder, startTime, endTime, memo, travelMinutesBefore, distanceKmBefore, estimatedCost |
 | `Participant` | id, memberId, nickname, participantRole |
 | `Place` | id, name, category, region, address, latitude, longitude, priceRange, openHours, openingTime, closingTime, estimatedCost, recommendedVisitMinutes |
 
