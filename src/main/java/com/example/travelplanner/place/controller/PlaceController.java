@@ -3,8 +3,10 @@ package com.example.travelplanner.place.controller;
 import com.example.travelplanner.common.response.ApiResponse;
 import com.example.travelplanner.place.dto.PlaceRequest;
 import com.example.travelplanner.place.dto.PlaceResponse;
+import com.example.travelplanner.place.dto.ExternalPlaceImportRequest;
 import com.example.travelplanner.place.entity.PlaceCategory;
 import com.example.travelplanner.place.service.PlaceService;
+import com.example.travelplanner.place.service.PlaceImportService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -34,6 +36,7 @@ import java.util.List;
 public class PlaceController {
 
     private final PlaceService placeService;
+    private final PlaceImportService placeImportService;
 
     @GetMapping
     public ApiResponse<List<PlaceResponse>> search(
@@ -51,6 +54,14 @@ public class PlaceController {
     @PostMapping
     public ResponseEntity<ApiResponse<PlaceResponse>> create(@Valid @RequestBody PlaceRequest request) {
         PlaceResponse response = placeService.create(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+    }
+
+    @PostMapping("/import")
+    public ResponseEntity<ApiResponse<List<PlaceResponse>>> importPlaces(
+            @Valid @RequestBody ExternalPlaceImportRequest request
+    ) {
+        List<PlaceResponse> response = placeImportService.importPlaces(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
 

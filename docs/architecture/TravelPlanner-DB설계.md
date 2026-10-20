@@ -1,6 +1,6 @@
 # TravelPlanner — DB 설계
 
-> 1~2단계(기본 CRUD + 동선·영업시간·예산 기반 일정 생성) 범위의 테이블 설계. 새 엔티티를 만들 때 이 문서와 다르게 컬럼을 추가/변경하면
+> 1~3단계(기본 CRUD + 일정 생성 + 외부 장소 동기화) 범위의 테이블 설계. 새 엔티티를 만들 때 이 문서와 다르게 컬럼을 추가/변경하면
 > 이 문서를 먼저 갱신한다. 모든 테이블은 `common/entity/BaseTimeEntity`를 상속하므로 `created_at`,
 > `updated_at` 컬럼은 아래 표에 별도로 적지 않는다(자동 포함).
 
@@ -99,16 +99,31 @@ ItineraryItem (N) ── (1) Place
 | address | VARCHAR(255) | NULL | |
 | latitude | DECIMAL(10,7) | NULL | |
 | longitude | DECIMAL(10,7) | NULL | |
-| price_range | VARCHAR(20) | NULL | |
-| open_hours | VARCHAR(255) | NULL | 기존 표시용 텍스트 |
+| price_range | VARCHAR(50) | NULL | 외부 가격 수준 또는 통화 범위 |
+| open_hours | VARCHAR(1000) | NULL | 기존 표시용 텍스트 |
 | opening_time | TIME | NULL | 2단계 일정 계산용 영업 시작 시각. closing_time과 함께 입력 |
-| closing_time | TIME | NULL | 2단계 일정 계산용 영업 종료 시각. 자정 이후 영업은 현재 미지원 |
+| closing_time | TIME | NULL | 기존 단일 일정 계산용 영업 종료 시각 |
 | estimated_cost | INT | NULL | 1인 기준 예상 비용(원), 0 이상 |
 | recommended_visit_minutes | INT | NULL | 권장 체류시간, 30~480분 |
+| source | VARCHAR(30) | NOT NULL | `MANUAL`, `GOOGLE_PLACES` |
+| external_id | VARCHAR(255) | NULL | 공급자 장소 ID |
+| last_synced_at | DATETIME | NULL | 외부 데이터 마지막 동기화 시각 |
 
 - 위도·경도는 둘 다 입력하거나 둘 다 생략한다.
 - 영업 시작·종료 시간은 둘 다 입력하거나 둘 다 생략하며 종료 시간이 더 늦어야 한다.
-- 요일별·공휴일별 영업시간이 필요해지면 별도 테이블로 분리한다.
+- 외부 장소는 `(source, external_id)` 유니크 제약으로 중복 적재를 막는다.
+
+### 2.7 place_opening_hour
+
+| 컬럼 | 타입 | 제약 | 비고 |
+|---|---|---|---|
+| place_id | BIGINT | FK → place.id, NOT NULL | 장소 삭제 시 함께 삭제 |
+| day_of_week | VARCHAR(10) | NOT NULL | `MONDAY`~`SUNDAY` |
+| opening_time | TIME | NOT NULL | 영업 시작 |
+| closing_time | TIME | NOT NULL | 영업 종료 |
+| closes_next_day | BOOLEAN | NOT NULL | 종료 시각이 다음 날인지 여부 |
+
+한 요일에 여러 구간을 저장할 수 있다. 공휴일의 임시 영업시간은 Google Places 응답을 실시간 조회하거나 별도 예외 테이블이 필요하므로 현재 저장 범위에 포함하지 않는다.
 
 ## 3. 인덱스 (제안)
 
@@ -120,7 +135,7 @@ ItineraryItem (N) ── (1) Place
 
 - [x] 비밀번호 해시 알고리즘 — BCrypt 적용 완료
 - [ ] soft delete 여부(삭제 컬럼 추가 vs hard delete) — 현재는 hard delete 가정, 정책 문서에서 재확인
-- [ ] place 데이터 적재 방식(직접 입력 vs 외부 API 수집) — 외부 장소 데이터 공급자 선정 시 결정
+- [x] place 데이터 적재 방식 — 직접 입력과 Google Places API 동기화를 함께 지원
 - [ ] `version`(낙관적 락) 컬럼 도입 시점 — 3단계 착수 시
 
 ## 5. 관련 문서

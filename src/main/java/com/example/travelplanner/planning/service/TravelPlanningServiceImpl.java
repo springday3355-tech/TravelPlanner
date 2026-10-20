@@ -61,7 +61,8 @@ public class TravelPlanningServiceImpl implements TravelPlanningService {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "필수 장소와 제외 장소는 중복될 수 없습니다.");
         }
 
-        List<PlaceResponse> regionPlaces = placeService.search(request.city(), null);
+        Set<PlaceCategory> preferredCategories = immutableSet(request.preferredCategories());
+        List<PlaceResponse> regionPlaces = placeService.searchForPlanning(request.city(), preferredCategories);
         validateRequiredPlaces(request.city(), requiredPlaceIds, regionPlaces);
         List<PlaceResponse> candidates = regionPlaces.stream()
                 .filter(place -> !excludedPlaceIds.contains(place.id()))
@@ -70,7 +71,6 @@ public class TravelPlanningServiceImpl implements TravelPlanningService {
             throw new BusinessException(ErrorCode.PLANNING_PLACE_NOT_FOUND);
         }
 
-        Set<PlaceCategory> preferredCategories = immutableSet(request.preferredCategories());
         PlanGenerationResult generation = scheduleGenerator.generate(new PlanGenerationContext(
                 request.startDate(), request.endDate(), dailyStartTime, dailyEndTime,
                 preferredCategories, request.companionType(), request.travelPace(), requiredPlaceIds, candidates,
