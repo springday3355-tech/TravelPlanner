@@ -1,6 +1,7 @@
 package com.example.travelplanner.place.dto;
 
 import com.example.travelplanner.place.entity.PlaceCategory;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -26,6 +27,6 @@ public record PlaceRequest(
         LocalTime closingTime,
         @PositiveOrZero Integer estimatedCost,
         @Min(30) @Max(480) Integer recommendedVisitMinutes,
-        List<@jakarta.validation.Valid OpeningHourRequest> openingHours
+        List<@NotNull @Valid OpeningHourRequest> openingHours
 ) {
 }

@@ -63,7 +63,7 @@ public class GooglePlacesProvider implements PlaceProvider {
 
     @Override
     public List<ProviderPlace> search(PlaceSearchCriteria criteria) {
-        int limit = Math.min(criteria.limit(), properties.getMaxResults());
+        int limit = Math.max(1, Math.min(criteria.limit(), properties.getMaxResults()));
         GoogleTextSearchRequest requestBody = new GoogleTextSearchRequest(
                 criteria.region() + " " + criteria.query(), "ko", limit
         );
