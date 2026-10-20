@@ -1,4 +1,4 @@
-# TravelPlanner — API 명세 (기본 CRUD + 여행 계획 초안 생성)
+# TravelPlanner — API 명세 (기본 CRUD + 실제 장소 기반 여행 계획 초안 생성)
 
 > 구현 시 그대로 따르는 계약 문서. 경로/필드명을 임의로 바꾸지 않는다. 바꿔야 하면 이 문서를 먼저 수정한다.
 > 참고: `docs/architecture/TravelPlanner-SA.md`(레이어 규칙), `docs/architecture/TravelPlanner-DB설계.md`(테이블),
@@ -172,6 +172,7 @@
 | GET | `/api/places` | 목록/필터 조회 | 불필요 |
 | GET | `/api/places/{id}` | 단건 조회 | 불필요 |
 | POST | `/api/places` | 장소 등록 | 필요 (권한 범위 결정 대기 — 정책 문서 3절) |
+| POST | `/api/places/import` | Google Places 검색 결과 동기화 | 필요 |
 | PUT | `/api/places/{id}` | 장소 수정 | 필요 (등록과 동일 정책) |
 | DELETE | `/api/places/{id}` | 장소 삭제 | 필요 (등록과 동일 정책) |
 
@@ -195,14 +196,44 @@
     "openingTime": "09:00",
     "closingTime": "20:00",
     "estimatedCost": 0,
-    "recommendedVisitMinutes": 90
+    "recommendedVisitMinutes": 90,
+    "source": "MANUAL",
+    "externalId": null,
+    "lastSyncedAt": null,
+    "openingHours": [
+      {
+        "dayOfWeek": "MONDAY",
+        "openingTime": "09:00",
+        "closingTime": "20:00",
+        "closesNextDay": false
+      }
+    ]
   }
 ]
 ```
 
 ### POST /api/places
 
-요청 body는 위 응답 형태에서 `id` 제외. 좌표와 영업시간은 각각 한 쌍으로 입력한다. `estimatedCost`는 0 이상, `recommendedVisitMinutes`는 30~480분이다. **등록 권한(관리자 전용 vs 사용자 개방)이 정책 문서 3절에 결정 대기로 남아 있다. 현재 구현은 "인증된 사용자면 누구나 가능"(ADMIN 제한 없음)으로, 결정 대기 항목을 임의로 확정하지 않기 위한 상태다.** 정책이 확정되면 이 문서와 `SecurityConfig`/`PlaceController`를 함께 갱신한다.
+요청 body는 위 응답 형태에서 `id`, `source`, `externalId`, `lastSyncedAt` 제외. 좌표와 기존 단일 영업시간은 각각 한 쌍으로 입력한다. `openingHours`에는 요일별 여러 영업 구간을 입력할 수 있고, 다음 날 종료되는 구간은 `closesNextDay=true`로 표시한다. `estimatedCost`는 0 이상, `recommendedVisitMinutes`는 30~480분이다. **등록 권한(관리자 전용 vs 사용자 개방)이 정책 문서 3절에 결정 대기로 남아 있다. 현재 구현은 "인증된 사용자면 누구나 가능"(ADMIN 제한 없음)으로, 결정 대기 항목을 임의로 확정하지 않기 위한 상태다.** 정책이 확정되면 이 문서와 `SecurityConfig`/`PlaceController`를 함께 갱신한다.
+
+### POST /api/places/import
+
+요청:
+
+```json
+{
+  "query": "관광 명소",
+  "region": "서울",
+  "categories": ["SIGHT"],
+  "limit": 10
+}
+```
+
+- `limit`은 1~20이며 생략하면 10이다.
+- Google Text Search로 ID를 찾고 Place Details의 이름·주소·좌표·유형·가격·요일별 영업시간을 가져온다.
+- 같은 `source`와 `externalId`가 이미 있으면 새 장소를 만들지 않고 정보와 동기화 시각을 갱신한다.
+- 성공 시 동기화된 `Place[]`와 HTTP 201을 반환한다.
+- Google Places 설정이 없으면 `L003`(503), 외부 호출이 실패하면 제한된 재시도 뒤 `L004`(502)를 반환한다.
 
 ## 4. 여행 계획 생성 (planning)
 
@@ -239,8 +270,9 @@
 - 좌표가 있으면 Haversine 직선거리와 평균 시속 20km로 이동시간을 추정한다. 좌표가 없는 장소 사이 이동시간은 30분으로 계산한다.
 - 선택 장소가 예산을 초과하면 제외한다. 필수 장소는 예산보다 우선하며, 초과 사실을 `warnings`로 반환한다.
 - 영업시간 안에 배치할 수 없는 필수 장소가 있으면 전체 생성을 거부한다.
+- 해당 도시에 저장된 장소가 없고 Google Places가 설정되어 있으면 선호 카테고리로 장소를 먼저 가져온다.
 - 여행 기간은 최대 14일이다. 생성·일자·방문 항목 저장은 하나의 트랜잭션으로 처리한다.
-- `ROUTE_AWARE_V2`는 실제 도로망·교통상황이 아닌 직선거리 추정치를 사용한다. 요일별 영업시간은 아직 지원하지 않는다.
+- `ROUTE_AWARE_V2`는 실제 도로망·교통상황이 아닌 직선거리 추정치를 사용한다. 요일별 여러 영업 구간과 자정 이후 종료 구간을 여행 날짜에 맞춰 사용한다.
 
 성공 응답 (`data`):
 ```json
@@ -271,7 +303,7 @@
 | `ItineraryDay` | id, dayNumber, date |
 | `ItineraryItem` | id, placeId, placeName, visitOrder, startTime, endTime, memo, travelMinutesBefore, distanceKmBefore, estimatedCost |
 | `Participant` | id, memberId, nickname, participantRole |
-| `Place` | id, name, category, region, address, latitude, longitude, priceRange, openHours, openingTime, closingTime, estimatedCost, recommendedVisitMinutes |
+| `Place` | id, name, category, region, address, latitude, longitude, priceRange, openHours, openingTime, closingTime, estimatedCost, recommendedVisitMinutes, source, externalId, lastSyncedAt, openingHours[] |
 
 ## 6. 이 문서에서 결정 대기로 남긴 항목
 
