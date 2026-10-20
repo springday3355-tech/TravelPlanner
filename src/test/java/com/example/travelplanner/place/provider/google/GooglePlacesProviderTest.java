@@ -51,6 +51,7 @@ class GooglePlacesProviderTest {
             assertEquals("places.id", exchange.getRequestHeaders().getFirst("X-Goog-FieldMask"));
             String requestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             assertTrue(requestBody.contains("서울 관광 명소"));
+            assertTrue(requestBody.contains("\"pageSize\":5"));
             if (searchCalls.incrementAndGet() == 1) {
                 respond(exchange, 500, "{}");
             } else {
@@ -62,7 +63,7 @@ class GooglePlacesProviderTest {
             respond(exchange, 200, """
                     {
                       "id": "google-place-1",
-                      "displayName": {"text": "테스트 박물관"},
+                      "displayName": {"text": "테스트 박물관", "languageCode": "ko"},
                       "formattedAddress": "서울특별시 중구 테스트로 1",
                       "location": {"latitude": 37.5665, "longitude": 126.9780},
                       "primaryType": "museum",

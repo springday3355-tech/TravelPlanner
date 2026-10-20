@@ -292,7 +292,7 @@ public class GooglePlacesProvider implements PlaceProvider {
     ) {
     }
 
-    private record GoogleLocalizedText(String text) {
+    private record GoogleLocalizedText(String text, String languageCode) {
     }
 
     private record GoogleLocation(Double latitude, Double longitude) {
