@@ -13,6 +13,7 @@ import com.example.travelplanner.place.entity.PlaceCategory;
 import com.example.travelplanner.place.service.PlaceService;
 import com.example.travelplanner.planning.dto.GenerateTravelPlanRequest;
 import com.example.travelplanner.planning.dto.GeneratedTravelPlanResponse;
+import com.example.travelplanner.planning.entity.TransportMode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -74,7 +75,8 @@ public class TravelPlanningServiceImpl implements TravelPlanningService {
         PlanGenerationResult generation = scheduleGenerator.generate(new PlanGenerationContext(
                 request.startDate(), request.endDate(), dailyStartTime, dailyEndTime,
                 preferredCategories, request.companionType(), request.travelPace(), requiredPlaceIds, candidates,
-                request.budget(), request.startLatitude(), request.startLongitude()
+                request.budget(), request.startLatitude(), request.startLongitude(),
+                request.transportMode() == null ? TransportMode.TRANSIT : request.transportMode()
         ));
         if (requiredPlaceIds.size() > generation.availableSlotCount()) {
             throw new BusinessException(ErrorCode.PLANNING_REQUIRED_PLACE_OVER_CAPACITY);
