@@ -296,7 +296,60 @@
 - `G003`(400): 필수 장소 수가 배치 가능 수를 초과
 - `G004`(422): 필수 장소를 영업시간과 일정 시간 안에 배치할 수 없음
 
-## 5. 공통 DTO 참고
+## 5. AI 일정 수정 (planning/ai)
+
+### POST /api/itineraries/{id}/ai-revisions
+
+인증된 `OWNER` 또는 `EDITOR`가 자연어로 기존 일정의 장소와 시간을 변경하거나 방문 항목을 제거한다.
+
+요청:
+
+```json
+{
+  "instruction": "비가 오면 첫날 야외 일정을 실내 장소로 바꿔줘"
+}
+```
+
+- `instruction`은 필수이며 최대 1,000자다.
+- OpenAI Responses API의 strict JSON Schema 출력만 변경 명령으로 해석한다.
+- 한 요청의 변경 명령은 기본 최대 5개다.
+- AI에는 일정 일자·방문 항목과 같은 도시의 후보 장소만 전달하며 공유 토큰과 동행자 정보는 전달하지 않는다.
+- 서버는 AI 결과를 신뢰하지 않고 일자·방문 항목·장소 ID, 여행 도시, 영업시간, 시간 겹침, 예산을 다시 검증한다.
+- 모든 명령은 하나의 트랜잭션으로 적용한다. 하나라도 실패하면 원래 일정을 보존한다.
+- 장소나 시간이 바뀌면 기존 이동시간·거리 추정값은 무효화해 `null`로 저장한다.
+
+성공 응답 (`data`):
+
+```json
+{
+  "summary": "첫날 야외 공원을 실내 박물관으로 변경했습니다.",
+  "provider": "OPENAI",
+  "model": "gpt-6-luna",
+  "promptVersion": "itinerary-revision-v1",
+  "changes": [
+    {
+      "operation": "UPDATE",
+      "itemId": 10,
+      "beforePlaceId": 20,
+      "afterPlaceId": 30,
+      "beforeStartTime": "09:00:00",
+      "afterStartTime": "10:00:00",
+      "reason": "우천 대응"
+    }
+  ],
+  "itinerary": { "id": 1, "days": [] }
+}
+```
+
+실패:
+
+- `P002`(403): 편집 권한 없음. 외부 AI 호출 전에 차단한다.
+- `G005`(503): AI 공급자 설정 또는 API 키 없음
+- `G006`(502): 외부 AI 호출 실패, 거부, 불완전하거나 해석 불가능한 응답
+- `G007`(422): 제안된 명령이 권한 외 리소스, 영업시간, 겹침, 예산 검증에 실패
+- `G008`(400): 프롬프트 크기, 명령 개수, 응답 길이 제한 초과
+
+## 6. 공통 DTO 참고
 
 | DTO | 필드 |
 |---|---|
@@ -307,7 +360,7 @@
 | `Participant` | id, memberId, nickname, participantRole |
 | `Place` | id, name, category, region, address, latitude, longitude, priceRange, openHours, openingTime, closingTime, estimatedCost, recommendedVisitMinutes, source, externalId, lastSyncedAt, openingHours[] |
 
-## 6. 이 문서에서 결정 대기로 남긴 항목
+## 7. 이 문서에서 결정 대기로 남긴 항목
 
 - [x] ~~로그인 응답 바디 스펙~~ → JWT로 확정, 1절 참고.
 - [ ] 공유 링크로 EDITOR 권한 부여 가능 여부 (현재 구현: 공유 링크는 항상 VIEWER)

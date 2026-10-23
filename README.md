@@ -10,7 +10,8 @@
 - 2단계 완료: 좌표 기반 동선, 구조화된 영업시간·예상 비용·체류시간을 반영하고 방문별 추정값을 저장하는 `ROUTE_AWARE_V2`
 - 3단계 완료: Google Places Text Search·Place Details 연동, 외부 장소 중복 동기화, 요일별·자정 이후 영업시간 반영
 - 4단계 완료: Google Routes 이동시간 행렬, 대중교통·자동차·도보 선택, 캐시·비용 상한·장애 대체 적용
-- 이후 목표: AI 대화형 수정
+- 5단계 완료: OpenAI Structured Outputs 기반 자연어 일정 수정, 서버 검증, 원자적 변경 적용
+- 이후 목표: 운영 데이터베이스와 배포 기반
 
 ## 기술 스택
 
@@ -56,6 +57,7 @@ macOS/Linux:
 - `POST /api/auth/signup`, `POST /api/auth/login`
 - `GET /api/members/me`
 - `POST /api/travel-plans/generate`: 여행 조건으로 일정 초안 생성·저장
+- `POST /api/itineraries/{id}/ai-revisions`: 자연어 요청으로 기존 일정 검증·수정
 - `/api/itineraries`: 일정과 동행자, 일자, 방문 항목 관리
 - `/api/places`: 장소 등록, 조회, 수정, 삭제
 - `POST /api/places/import`: Google Places의 실제 장소 검색·동기화
@@ -70,6 +72,8 @@ macOS/Linux:
 Google Places를 사용하려면 `.env.example`을 참고해 `GOOGLE_PLACES_ENABLED=true`와 `GOOGLE_PLACES_API_KEY`를 환경변수로 설정합니다. 키가 없으면 기존 DB 장소만 사용하며 외부 가져오기 API는 `L003`을 반환합니다.
 
 실제 이동 경로를 사용하려면 Google Cloud에서 Routes API를 활성화하고 `GOOGLE_ROUTES_ENABLED=true`를 설정합니다. `GOOGLE_ROUTES_API_KEY`를 생략하면 Places 키를 함께 사용합니다. 설정 누락, 호출 실패, 계획당 요소 상한 초과 시에는 기존 직선거리 추정으로 자동 전환합니다.
+
+AI 일정 수정을 사용하려면 `OPENAI_AI_REVISION_ENABLED=true`와 `OPENAI_API_KEY`를 설정합니다. 기본 모델은 `gpt-6-luna`이며 모델·추론 수준·출력 토큰·명령 수·프롬프트 크기 제한은 환경변수로 조정할 수 있습니다. 키가 없으면 AI 수정 API는 `G005`를 반환합니다.
 
 ## 문서
 

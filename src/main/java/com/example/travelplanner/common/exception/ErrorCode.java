@@ -48,7 +48,11 @@ public enum ErrorCode {
     PLANNING_PLACE_NOT_FOUND(HttpStatus.UNPROCESSABLE_ENTITY, "G001", "해당 도시에 일정으로 만들 수 있는 장소가 없습니다."),
     PLANNING_PLACE_REGION_MISMATCH(HttpStatus.BAD_REQUEST, "G002", "필수 장소가 여행 도시에 속하지 않습니다."),
     PLANNING_REQUIRED_PLACE_OVER_CAPACITY(HttpStatus.BAD_REQUEST, "G003", "필수 장소 수가 일정에 배치할 수 있는 수를 초과합니다."),
-    PLANNING_REQUIRED_PLACE_UNSCHEDULABLE(HttpStatus.UNPROCESSABLE_ENTITY, "G004", "필수 장소를 영업시간과 일정 시간 안에 배치할 수 없습니다.");
+    PLANNING_REQUIRED_PLACE_UNSCHEDULABLE(HttpStatus.UNPROCESSABLE_ENTITY, "G004", "필수 장소를 영업시간과 일정 시간 안에 배치할 수 없습니다."),
+    AI_PROVIDER_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "G005", "AI 일정 수정 서비스가 설정되지 않았습니다."),
+    AI_PROVIDER_FAILED(HttpStatus.BAD_GATEWAY, "G006", "AI 일정 수정 서비스 호출에 실패했습니다."),
+    AI_REVISION_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "G007", "AI가 제안한 일정 변경을 적용할 수 없습니다."),
+    AI_REVISION_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "G008", "AI 일정 수정 요청이 허용 범위를 초과했습니다.");
 
     private final HttpStatus status;
     private final String code;
