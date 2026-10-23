@@ -4,6 +4,7 @@ import com.example.travelplanner.place.dto.PlaceResponse;
 import com.example.travelplanner.place.entity.PlaceCategory;
 import com.example.travelplanner.planning.entity.CompanionType;
 import com.example.travelplanner.planning.entity.TravelPace;
+import com.example.travelplanner.planning.entity.TransportMode;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -23,6 +24,7 @@ public record PlanGenerationContext(
         List<PlaceResponse> candidates,
         Integer budget,
         BigDecimal startLatitude,
-        BigDecimal startLongitude
+        BigDecimal startLongitude,
+        TransportMode transportMode
 ) {
 }
