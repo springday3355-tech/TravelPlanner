@@ -3,6 +3,11 @@ package com.example.travelplanner.planning.service;
 import com.example.travelplanner.place.dto.PlaceResponse;
 import com.example.travelplanner.place.dto.OpeningHourResponse;
 import com.example.travelplanner.place.entity.PlaceCategory;
+import com.example.travelplanner.planning.entity.TransportMode;
+import com.example.travelplanner.planning.route.RouteMatrixService;
+import com.example.travelplanner.planning.route.RouteMatrixSnapshot;
+import com.example.travelplanner.planning.route.RouteMetric;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -19,13 +24,16 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Component
+@RequiredArgsConstructor
 public class RouteAwareScheduleGenerator implements ScheduleGenerator {
 
     private static final int DEFAULT_TRAVEL_MINUTES = 30;
     private static final double ESTIMATED_URBAN_SPEED_KMH = 20.0;
+    private final RouteMatrixService routeMatrixService;
 
     @Override
     public PlanGenerationResult generate(PlanGenerationContext context) {
+        RouteMatrixSnapshot routeMatrix = routeMatrixService.resolve(context);
         int dayCount = (int) ChronoUnit.DAYS.between(context.startDate(), context.endDate()) + 1;
         int visitsPerDay = Math.min(
                 context.travelPace().getMaximumVisitsPerDay(), companionVisitLimit(context)
@@ -36,6 +44,7 @@ public class RouteAwareScheduleGenerator implements ScheduleGenerator {
         int totalCost = 0;
         int totalTravelMinutes = 0;
         double totalDistanceKm = 0;
+        boolean routeFallbackUsed = false;
 
         for (int dayIndex = 0; dayIndex < dayCount; dayIndex++) {
             LocalDate date = context.startDate().plusDays(dayIndex);
@@ -43,7 +52,9 @@ public class RouteAwareScheduleGenerator implements ScheduleGenerator {
             Position position = Position.start(context.startLatitude(), context.startLongitude());
 
             for (int order = 1; order <= visitsPerDay; order++) {
-                CandidateChoice choice = chooseCandidate(remaining, context, position, date, cursor, totalCost);
+                CandidateChoice choice = chooseCandidate(
+                        remaining, context, routeMatrix, position, date, cursor, totalCost
+                );
                 if (choice == null) {
                     break;
                 }
@@ -54,10 +65,11 @@ public class RouteAwareScheduleGenerator implements ScheduleGenerator {
                 ));
                 remaining.remove(place);
                 cursor = choice.endTime();
-                position = Position.afterVisit(place.latitude(), place.longitude());
+                position = Position.afterVisit(place.id().toString(), place.latitude(), place.longitude());
                 totalCost += valueOrZero(place.estimatedCost());
                 totalTravelMinutes += choice.travelMinutes();
                 totalDistanceKm += choice.distanceKm();
+                routeFallbackUsed |= choice.routeFallbackUsed();
             }
         }
 
@@ -65,9 +77,12 @@ public class RouteAwareScheduleGenerator implements ScheduleGenerator {
         Set<Long> unscheduledRequired = new HashSet<>(context.requiredPlaceIds());
         unscheduledRequired.removeAll(scheduledIds);
 
-        List<String> warnings = buildWarnings(context, visits, remaining, totalCost);
+        List<String> warnings = buildWarnings(
+                context, routeMatrix, visits, remaining, totalCost, routeFallbackUsed
+        );
         return new PlanGenerationResult(
-                "ROUTE_AWARE_V2", totalSlots, List.copyOf(visits), warnings,
+                routeMatrix.usesExternalRoutes() ? "ROUTE_MATRIX_V4" : "ROUTE_AWARE_V2",
+                totalSlots, List.copyOf(visits), warnings,
                 roundDistance(totalDistanceKm), totalTravelMinutes, totalCost, Set.copyOf(unscheduledRequired)
         );
     }
@@ -75,6 +90,7 @@ public class RouteAwareScheduleGenerator implements ScheduleGenerator {
     private CandidateChoice chooseCandidate(
             List<PlaceResponse> remaining,
             PlanGenerationContext context,
+            RouteMatrixSnapshot routeMatrix,
             Position position,
             LocalDate date,
             LocalTime cursor,
@@ -84,7 +100,7 @@ public class RouteAwareScheduleGenerator implements ScheduleGenerator {
         return remaining.stream()
                 .filter(place -> context.requiredPlaceIds().contains(place.id())
                         || !exceedsBudget(context.budget(), currentCost, place.estimatedCost()))
-                .map(place -> toChoice(place, context, position, date, cursor))
+                .map(place -> toChoice(place, context, routeMatrix, position, date, cursor))
                 .filter(Objects::nonNull)
                 .sorted(Comparator
                         .comparing((CandidateChoice choice) -> !context.requiredPlaceIds().contains(choice.place().id()))
@@ -99,12 +115,16 @@ public class RouteAwareScheduleGenerator implements ScheduleGenerator {
     private CandidateChoice toChoice(
             PlaceResponse place,
             PlanGenerationContext context,
+            RouteMatrixSnapshot routeMatrix,
             Position position,
             LocalDate date,
             LocalTime cursor
     ) {
-        double distanceKm = calculateDistance(position, place);
-        int travelMinutes = estimateTravelMinutes(position, place, distanceKm);
+        RouteMetric route = routeMatrix.find(position.key(), place.id().toString()).orElse(null);
+        double distanceKm = route == null ? calculateDistance(position, place) : route.distanceKm();
+        int travelMinutes = route == null
+                ? estimateTravelMinutes(position, place, distanceKm)
+                : route.durationMinutes();
         LocalTime arrival = cursor.plusMinutes(travelMinutes);
         if (travelMinutes > 0 && arrival.isBefore(cursor)) {
             return null;
@@ -113,7 +133,10 @@ public class RouteAwareScheduleGenerator implements ScheduleGenerator {
         if (visitTime == null) {
             return null;
         }
-        return new CandidateChoice(place, visitTime.start(), visitTime.end(), travelMinutes, distanceKm);
+        boolean fallbackUsed = route == null && position.hasPrevious();
+        return new CandidateChoice(
+                place, visitTime.start(), visitTime.end(), travelMinutes, distanceKm, fallbackUsed
+        );
     }
 
     private VisitTime findVisitTime(
@@ -168,9 +191,11 @@ public class RouteAwareScheduleGenerator implements ScheduleGenerator {
 
     private List<String> buildWarnings(
             PlanGenerationContext context,
+            RouteMatrixSnapshot routeMatrix,
             List<PlannedVisit> visits,
             List<PlaceResponse> remaining,
-            int totalCost
+            int totalCost,
+            boolean routeFallbackUsed
     ) {
         List<String> warnings = new ArrayList<>();
         if (!remaining.isEmpty()) {
@@ -189,7 +214,23 @@ public class RouteAwareScheduleGenerator implements ScheduleGenerator {
         if (context.budget() != null && totalCost > context.budget()) {
             warnings.add("필수 장소를 포함하기 위해 예상 비용이 입력 예산을 초과했습니다.");
         }
-        warnings.add("이동 시간은 직선거리와 평균 시속 20km를 기준으로 한 추정치입니다.");
+        if (routeMatrix.usesExternalRoutes()) {
+            warnings.add("이동 시간과 거리는 Google Routes 도로망 기준입니다.");
+        }
+        switch (routeMatrix.status()) {
+            case DISABLED -> warnings.add("경로 API가 비활성화되어 직선거리 기준 추정치를 사용했습니다.");
+            case COST_LIMIT -> warnings.add("경로 조회 비용 제한을 초과해 직선거리 기준 추정치를 사용했습니다.");
+            case FAILED -> warnings.add("경로 서비스 장애로 직선거리 기준 추정치를 사용했습니다.");
+            case NO_COORDINATES -> warnings.add("경로를 계산할 좌표가 없어 직선거리 기준 추정치를 사용했습니다.");
+            case EXTERNAL, CACHE -> {
+                if (routeFallbackUsed) {
+                    warnings.add("일부 경로 결과가 없어 해당 구간은 직선거리 기준 추정치를 사용했습니다.");
+                }
+            }
+        }
+        if (context.transportMode() == TransportMode.WALK) {
+            warnings.add("도보 경로 기능은 Google Routes 베타 제공 범위에 포함됩니다.");
+        }
         return List.copyOf(warnings);
     }
 
@@ -267,13 +308,17 @@ public class RouteAwareScheduleGenerator implements ScheduleGenerator {
         return value == null ? 0 : value;
     }
 
-    private record Position(BigDecimal latitude, BigDecimal longitude, boolean hasPrevious) {
+    private record Position(String key, BigDecimal latitude, BigDecimal longitude, boolean hasPrevious) {
         static Position start(BigDecimal latitude, BigDecimal longitude) {
-            return new Position(latitude, longitude, latitude != null && longitude != null);
+            boolean hasCoordinates = latitude != null && longitude != null;
+            return new Position(
+                    hasCoordinates ? RouteMatrixService.START_KEY : null,
+                    latitude, longitude, hasCoordinates
+            );
         }
 
-        static Position afterVisit(BigDecimal latitude, BigDecimal longitude) {
-            return new Position(latitude, longitude, true);
+        static Position afterVisit(String key, BigDecimal latitude, BigDecimal longitude) {
+            return new Position(key, latitude, longitude, true);
         }
 
         boolean hasCoordinates() {
@@ -286,7 +331,8 @@ public class RouteAwareScheduleGenerator implements ScheduleGenerator {
             LocalTime startTime,
             LocalTime endTime,
             int travelMinutes,
-            double distanceKm
+            double distanceKm,
+            boolean routeFallbackUsed
     ) {
     }
 
