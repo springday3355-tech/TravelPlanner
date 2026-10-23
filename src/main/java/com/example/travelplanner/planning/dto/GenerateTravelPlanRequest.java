@@ -3,6 +3,7 @@ package com.example.travelplanner.planning.dto;
 import com.example.travelplanner.place.entity.PlaceCategory;
 import com.example.travelplanner.planning.entity.CompanionType;
 import com.example.travelplanner.planning.entity.TravelPace;
+import com.example.travelplanner.planning.entity.TransportMode;
 import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -30,6 +31,7 @@ public record GenerateTravelPlanRequest(
         Set<@Positive Long> requiredPlaceIds,
         Set<@Positive Long> excludedPlaceIds,
         @DecimalMin("-90.0") @DecimalMax("90.0") BigDecimal startLatitude,
-        @DecimalMin("-180.0") @DecimalMax("180.0") BigDecimal startLongitude
+        @DecimalMin("-180.0") @DecimalMax("180.0") BigDecimal startLongitude,
+        TransportMode transportMode
 ) {
 }
