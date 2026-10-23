@@ -4,9 +4,9 @@
 > "이 규칙대로 짜라"는 계약(contract) 문서로 취급한다. 새 도메인/API를 추가하기 전에 반드시 이 문서를 먼저 읽고,
 > 여기 정의된 패키지 구조·레이어 규칙·공통 골격을 그대로 재사용한다. 규칙을 바꿔야 하면 코드보다 이 문서를 먼저 수정한다.
 
-- 버전: 0.5
-- 상태: 기본 CRUD + 동선·영업시간·예산 기반 여행 계획 V2 구현 완료
-- 최종 수정: 2026-10-20
+- 버전: 0.6
+- 상태: 기본 CRUD + Google Places·Routes 기반 여행 계획 V4 구현 완료
+- 최종 수정: 2026-10-23
 
 ---
 
@@ -15,8 +15,8 @@
 - 서비스명(기획): 트래블메이커 — 여행 조건(도시/날짜/예산/취향)을 입력하면 AI가 일정을 자동 생성하고,
   실시간 채팅으로 즉시 수정하며, 동행자와 하나의 일정을 실시간 공동 편집하는 여행 플래너.
 - 리포지토리명: TravelPlanner
-- 현재 단계: 공통 골격 + 회원/일정/장소 CRUD + 좌표·영업시간·예산을 반영한 일정 초안 생성 구현 완료.
-- 다음 작업: 외부 장소 데이터 공급자와 실제 도로 이동시간 API, 대화형 AI 수정의 우선순위를 결정한다.
+- 현재 단계: 공통 골격 + 회원/일정/장소 CRUD + Google Places 장소와 Google Routes 이동시간을 반영한 일정 초안 생성 구현 완료.
+- 다음 작업: 대화형 AI 일정 수정 흐름을 구현한다.
 
 ## 2. 기술 스택 (build.gradle 기준, 임의 추측 금지)
 
@@ -63,7 +63,7 @@ com.example.travelplanner
 │  ├─ controller / service / repository / entity / dto
 ├─ itinerary/                   ← 일정 (구현 완료)
 ├─ place/                       ← 장소/검색 (구현 완료, 검색엔진 연동은 2단계)
-├─ planning/                    ← 여행 조건 기반 일정 초안 생성 (`ROUTE_AWARE_V2` 구현 완료)
+├─ planning/                    ← 여행 조건 기반 일정 초안 생성 (`ROUTE_MATRIX_V4`, 장애 시 V2)
 └─ realtime/                    ← 실시간/채팅 (2~3단계 이전에는 생성 금지)
 ```
 
@@ -173,7 +173,7 @@ public class Itinerary extends BaseTimeEntity {
 | 1 | auth (회원/로그인) | `POST /api/auth/signup`, `POST /api/auth/login`, `GET /api/members/me` | 구현 완료 |
 | 2 | itinerary (일정) | `docs/architecture/TravelPlanner-API명세.md` 2절 전체 | 구현 완료 |
 | 3 | place (장소/검색) | `GET/POST/PUT/DELETE /api/places` | 구현 완료 (검색엔진 연동 전, JPA 쿼리 필터링) |
-| 4 | planning (여행 계획) | `POST /api/travel-plans/generate` | 동선·영업시간·예산 기반 V2 구현 완료 |
+| 4 | planning (여행 계획) | `POST /api/travel-plans/generate` | Google Routes 이동시간 기반 V4 구현 완료 |
 | 5 | realtime (실시간/채팅) | WebSocket 엔드포인트 | 여행 계획 흐름 검증 전 착수 금지, 미착수 |
 
 ## 8. 단계적 로드맵
@@ -182,7 +182,8 @@ public class Itinerary extends BaseTimeEntity {
 - **1단계 (완료)**: 공통 골격/테스트 하네스 + 회원·일정·장소 기본 CRUD (JWT 인증, H2 로컬).
 - **1단계 여행 계획 (완료)**: 여행 조건 입력 → 장소 후보 → 규칙 기반 일정 초안 → 검증 → 저장.
 - **2단계 일정 품질 (완료)**: 좌표 기반 동선, 영업시간, 예산, 체류시간 반영과 품질 경고, 방문별 이동·비용 추정값 영속화.
-- **외부 연동 단계**: 장소 데이터 공급자, 실제 도로 이동시간, AI 수정 흐름을 결정한 뒤 연동한다.
+- **3~4단계 (완료)**: Google Places 장소 공급자와 Google Routes 이동시간 행렬을 연동하고 장애 대체를 검증했다.
+- **5단계**: 구조화 출력과 검증을 거치는 대화형 AI 일정 수정을 구현한다.
 - **실시간 단계**: WebSocket 공동 편집, 낙관적 락(`@Version`), 필요 시 Redis Pub/Sub와 분산 락을 추가한다.
 
 ## 9. 결정 대기 / 에이전트가 임의로 정하면 안 되는 것
