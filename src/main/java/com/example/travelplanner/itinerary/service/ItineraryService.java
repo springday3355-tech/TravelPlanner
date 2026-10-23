@@ -4,6 +4,8 @@ import com.example.travelplanner.itinerary.dto.AddDayRequest;
 import com.example.travelplanner.itinerary.dto.CreateItineraryRequest;
 import com.example.travelplanner.itinerary.dto.InviteParticipantRequest;
 import com.example.travelplanner.itinerary.dto.ItineraryDayResponse;
+import com.example.travelplanner.itinerary.dto.ItineraryBatchChangeResult;
+import com.example.travelplanner.itinerary.dto.ItineraryItemChangeCommand;
 import com.example.travelplanner.itinerary.dto.ItineraryDetailResponse;
 import com.example.travelplanner.itinerary.dto.ItineraryItemRequest;
 import com.example.travelplanner.itinerary.dto.ItineraryItemResponse;
@@ -25,6 +27,8 @@ public interface ItineraryService {
 
     ItineraryDetailResponse getDetail(Long itineraryId, Long memberId);
 
+    ItineraryDetailResponse getEditableDetail(Long itineraryId, Long memberId);
+
     ItineraryDetailResponse getSharedDetail(String shareToken);
 
     ItineraryDetailResponse update(Long itineraryId, Long memberId, UpdateItineraryRequest request);
@@ -44,4 +48,10 @@ public interface ItineraryService {
     ItineraryItemResponse updateItem(Long itineraryId, Long dayId, Long itemId, Long memberId, ItineraryItemRequest request);
 
     void deleteItem(Long itineraryId, Long dayId, Long itemId, Long memberId);
+
+    ItineraryBatchChangeResult applyItemChanges(
+            Long itineraryId,
+            Long memberId,
+            List<ItineraryItemChangeCommand> commands
+    );
 }

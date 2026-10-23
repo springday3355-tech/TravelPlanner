@@ -8,6 +8,10 @@ import com.example.travelplanner.itinerary.dto.AddDayRequest;
 import com.example.travelplanner.itinerary.dto.CreateItineraryRequest;
 import com.example.travelplanner.itinerary.dto.InviteParticipantRequest;
 import com.example.travelplanner.itinerary.dto.ItineraryDayResponse;
+import com.example.travelplanner.itinerary.dto.ItineraryBatchChangeResult;
+import com.example.travelplanner.itinerary.dto.ItineraryItemChangeCommand;
+import com.example.travelplanner.itinerary.dto.ItineraryItemChangeResponse;
+import com.example.travelplanner.itinerary.dto.ItemChangeOperation;
 import com.example.travelplanner.itinerary.dto.ItineraryDetailResponse;
 import com.example.travelplanner.itinerary.dto.ItineraryItemRequest;
 import com.example.travelplanner.itinerary.dto.ItineraryItemResponse;
@@ -32,8 +36,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * 동시 편집 정책: 3단계(낙관적 락) 도입 전까지는 마지막 저장이 이긴다(정책 문서 2절).
@@ -86,6 +96,13 @@ public class ItineraryServiceImpl implements ItineraryService {
     public ItineraryDetailResponse getDetail(Long itineraryId, Long memberId) {
         Itinerary itinerary = getItineraryOrThrow(itineraryId);
         requireParticipant(itineraryId, memberId);
+        return buildDetail(itinerary, true);
+    }
+
+    @Override
+    public ItineraryDetailResponse getEditableDetail(Long itineraryId, Long memberId) {
+        Itinerary itinerary = getItineraryOrThrow(itineraryId);
+        requireEditPermission(itineraryId, memberId);
         return buildDetail(itinerary, true);
     }
 
@@ -253,6 +270,186 @@ public class ItineraryServiceImpl implements ItineraryService {
         itineraryItemRepository.delete(item);
     }
 
+    @Override
+    @Transactional
+    public ItineraryBatchChangeResult applyItemChanges(
+            Long itineraryId,
+            Long memberId,
+            List<ItineraryItemChangeCommand> commands
+    ) {
+        Itinerary itinerary = getItineraryOrThrow(itineraryId);
+        requireEditPermission(itineraryId, memberId);
+        if (commands == null || commands.isEmpty()) {
+            return new ItineraryBatchChangeResult(List.of(), buildDetail(itinerary, true));
+        }
+
+        Map<Long, ItineraryDay> days = itineraryDayRepository
+                .findByItineraryIdOrderByDayNumberAsc(itineraryId).stream()
+                .collect(java.util.stream.Collectors.toMap(ItineraryDay::getId, day -> day));
+        Map<Long, ProjectedItem> projected = new HashMap<>();
+        for (ItineraryDay day : days.values()) {
+            for (ItineraryItem item : itineraryItemRepository
+                    .findByItineraryDayIdOrderByVisitOrderAsc(day.getId())) {
+                projected.put(item.getId(), ProjectedItem.from(day, item, placeService.getPlace(item.getPlaceId())));
+            }
+        }
+
+        Set<Long> changedItemIds = new HashSet<>();
+        List<ItineraryItemChangeResponse> changes = new ArrayList<>();
+        for (ItineraryItemChangeCommand command : commands) {
+            validateCommandShape(command);
+            if (!changedItemIds.add(command.itemId())) {
+                throw invalidRevision("같은 방문 항목을 한 요청에서 여러 번 변경할 수 없습니다.");
+            }
+            ItineraryDay day = days.get(command.dayId());
+            ProjectedItem current = projected.get(command.itemId());
+            if (day == null || current == null || !current.dayId().equals(day.getId())) {
+                throw invalidRevision("일정에 속하지 않은 일자나 방문 항목입니다.");
+            }
+            if (command.operation() == ItemChangeOperation.REMOVE) {
+                projected.remove(command.itemId());
+                changes.add(toChange(command, current, null));
+                continue;
+            }
+
+            PlaceResponse place = getRevisionPlace(command.placeId());
+            if (!itinerary.getCity().equals(place.region())) {
+                throw invalidRevision("변경 장소가 일정의 여행 도시에 속하지 않습니다.");
+            }
+            validateVisitTime(day.getDate(), command.startTime(), command.endTime(), place);
+            ProjectedItem updated = current.update(place, command.startTime(), command.endTime(), command.memo());
+            projected.put(command.itemId(), updated);
+            changes.add(toChange(command, current, updated));
+        }
+
+        validateNoOverlap(projected.values());
+        validateBudget(itinerary.getBudget(), projected.values());
+
+        for (ItineraryItemChangeCommand command : commands) {
+            ItineraryItem item = itineraryItemRepository.findByIdAndItineraryDayId(
+                    command.itemId(), command.dayId()
+            ).orElseThrow(() -> invalidRevision("변경할 방문 항목을 찾을 수 없습니다."));
+            if (command.operation() == ItemChangeOperation.REMOVE) {
+                itineraryItemRepository.delete(item);
+                continue;
+            }
+            PlaceResponse place = getRevisionPlace(command.placeId());
+            item.update(
+                    place.id(), item.getVisitOrder(), command.startTime(), command.endTime(),
+                    command.memo() == null ? item.getMemo() : command.memo(),
+                    null, null, place.estimatedCost()
+            );
+        }
+        itineraryItemRepository.flush();
+        return new ItineraryBatchChangeResult(List.copyOf(changes), buildDetail(itinerary, true));
+    }
+
+    private void validateCommandShape(ItineraryItemChangeCommand command) {
+        if (command == null || command.operation() == null || command.dayId() == null
+                || command.itemId() == null || command.reason() == null || command.reason().isBlank()) {
+            throw invalidRevision("AI 변경 명령의 필수값이 누락되었습니다.");
+        }
+        if (command.operation() == ItemChangeOperation.UPDATE
+                && (command.placeId() == null || command.startTime() == null || command.endTime() == null)) {
+            throw invalidRevision("일정 변경에는 장소와 시작·종료 시간이 필요합니다.");
+        }
+        if (command.memo() != null && command.memo().length() > 500) {
+            throw invalidRevision("방문 메모는 500자를 넘을 수 없습니다.");
+        }
+        if (command.reason().length() > 500) {
+            throw invalidRevision("변경 이유는 500자를 넘을 수 없습니다.");
+        }
+    }
+
+    private void validateVisitTime(
+            LocalDate date,
+            LocalTime startTime,
+            LocalTime endTime,
+            PlaceResponse place
+    ) {
+        if (!endTime.isAfter(startTime)) {
+            throw invalidRevision("방문 종료 시간은 시작 시간보다 늦어야 합니다.");
+        }
+        if (!isOpen(place, date, startTime, endTime)) {
+            throw invalidRevision("변경된 방문 시간이 장소 영업시간을 벗어납니다.");
+        }
+    }
+
+    private boolean isOpen(PlaceResponse place, LocalDate date, LocalTime startTime, LocalTime endTime) {
+        if (place.openingHours() != null && !place.openingHours().isEmpty()) {
+            boolean sameDay = place.openingHours().stream()
+                    .filter(hours -> hours.dayOfWeek() == date.getDayOfWeek())
+                    .anyMatch(hours -> !startTime.isBefore(hours.openingTime())
+                            && (hours.closesNextDay() || !endTime.isAfter(hours.closingTime())));
+            boolean previousDay = place.openingHours().stream()
+                    .filter(hours -> hours.dayOfWeek() == date.minusDays(1).getDayOfWeek())
+                    .filter(com.example.travelplanner.place.dto.OpeningHourResponse::closesNextDay)
+                    .anyMatch(hours -> !endTime.isAfter(hours.closingTime()));
+            return sameDay || previousDay;
+        }
+        if (place.openingTime() == null || place.closingTime() == null) {
+            return true;
+        }
+        return !startTime.isBefore(place.openingTime()) && !endTime.isAfter(place.closingTime());
+    }
+
+    private void validateNoOverlap(java.util.Collection<ProjectedItem> projectedItems) {
+        Map<Long, List<ProjectedItem>> byDay = projectedItems.stream()
+                .filter(item -> item.startTime() != null && item.endTime() != null)
+                .collect(java.util.stream.Collectors.groupingBy(ProjectedItem::dayId));
+        for (List<ProjectedItem> items : byDay.values()) {
+            List<ProjectedItem> sorted = items.stream()
+                    .sorted(java.util.Comparator.comparing(ProjectedItem::startTime))
+                    .toList();
+            for (int index = 1; index < sorted.size(); index++) {
+                if (sorted.get(index).startTime().isBefore(sorted.get(index - 1).endTime())) {
+                    throw invalidRevision("변경된 방문 시간이 같은 날의 다른 방문과 겹칩니다.");
+                }
+            }
+        }
+    }
+
+    private void validateBudget(Integer budget, java.util.Collection<ProjectedItem> projectedItems) {
+        if (budget == null) {
+            return;
+        }
+        int total = projectedItems.stream()
+                .map(ProjectedItem::estimatedCost)
+                .filter(java.util.Objects::nonNull)
+                .mapToInt(Integer::intValue)
+                .sum();
+        if (total > budget) {
+            throw invalidRevision("변경된 일정의 예상 비용이 예산을 초과합니다.");
+        }
+    }
+
+    private ItineraryItemChangeResponse toChange(
+            ItineraryItemChangeCommand command,
+            ProjectedItem before,
+            ProjectedItem after
+    ) {
+        return new ItineraryItemChangeResponse(
+                command.operation(), command.itemId(), before.placeId(),
+                after == null ? null : after.placeId(), before.startTime(),
+                after == null ? null : after.startTime(), command.reason()
+        );
+    }
+
+    private BusinessException invalidRevision(String message) {
+        return new BusinessException(ErrorCode.AI_REVISION_INVALID, message);
+    }
+
+    private PlaceResponse getRevisionPlace(Long placeId) {
+        try {
+            return placeService.getPlace(placeId);
+        } catch (BusinessException e) {
+            if (e.getErrorCode() == ErrorCode.PLACE_NOT_FOUND) {
+                throw invalidRevision("AI가 제안한 장소를 찾을 수 없습니다.");
+            }
+            throw e;
+        }
+    }
+
     // ---- 내부 헬퍼 ----
 
     private void validatePeriod(LocalDate startDate, LocalDate endDate) {
@@ -332,5 +529,31 @@ public class ItineraryServiceImpl implements ItineraryService {
         byte[] bytes = new byte[24];
         SECURE_RANDOM.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private record ProjectedItem(
+            Long dayId,
+            LocalDate date,
+            Long itemId,
+            Long placeId,
+            LocalTime startTime,
+            LocalTime endTime,
+            String memo,
+            Integer estimatedCost
+    ) {
+        static ProjectedItem from(ItineraryDay day, ItineraryItem item, PlaceResponse place) {
+            return new ProjectedItem(
+                    day.getId(), day.getDate(), item.getId(), item.getPlaceId(),
+                    item.getStartTime(), item.getEndTime(), item.getMemo(),
+                    item.getEstimatedCost() == null ? place.estimatedCost() : item.getEstimatedCost()
+            );
+        }
+
+        ProjectedItem update(PlaceResponse place, LocalTime startTime, LocalTime endTime, String memo) {
+            return new ProjectedItem(
+                    dayId, date, itemId, place.id(), startTime, endTime,
+                    memo == null ? this.memo : memo, place.estimatedCost()
+            );
+        }
     }
 }
