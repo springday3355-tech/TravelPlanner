@@ -257,33 +257,35 @@
   "requiredPlaceIds": [10],
   "excludedPlaceIds": [20],
   "startLatitude": 35.1587,
-  "startLongitude": 129.1604
+  "startLongitude": 129.1604,
+  "transportMode": "TRANSIT"
 }
 ```
 
 - `companionType`: `SOLO`, `COUPLE`, `FAMILY`, `FRIENDS`
 - `travelPace`: `RELAXED`(하루 최대 3곳), `BALANCED`(4곳), `ACTIVE`(5곳)
+- `transportMode`: `TRANSIT`(기본값), `DRIVE`, `WALK`
 - 동행 형태별 하루 상한: `FAMILY` 3곳, `COUPLE` 4곳, `SOLO`·`FRIENDS` 5곳. 여행 속도 상한과 비교해 더 작은 값을 적용한다.
 - 하루 시간의 기본값은 `09:00`~`18:00`이다. 체류시간 미입력 시 카테고리 기본값(`FOOD`·`SIGHT` 90분, `CAFE`·`ACCOMMODATION` 60분)을 사용한다.
 - 출발 좌표는 선택값이지만 위도·경도를 함께 입력해야 한다. 입력 시 첫 장소까지의 이동량도 계산한다.
 - 필수 장소 → 선호 카테고리 → 실제 방문 가능 시작 시각 → 거리 순으로 후보를 선택한다.
-- 좌표가 있으면 Haversine 직선거리와 평균 시속 20km로 이동시간을 추정한다. 좌표가 없는 장소 사이 이동시간은 30분으로 계산한다.
+- Google Routes가 활성화되어 있으면 선택한 교통수단의 도로망 이동시간 행렬을 사용한다. 비활성화·장애·비용 상한 초과·일부 경로 누락 시 Haversine 직선거리와 평균 시속 20km 추정으로 전환한다. 좌표가 없는 장소 사이 이동시간은 30분으로 계산한다.
 - 선택 장소가 예산을 초과하면 제외한다. 필수 장소는 예산보다 우선하며, 초과 사실을 `warnings`로 반환한다.
 - 영업시간 안에 배치할 수 없는 필수 장소가 있으면 전체 생성을 거부한다.
 - 해당 도시에 저장된 장소가 없고 Google Places가 설정되어 있으면 선호 카테고리로 장소를 먼저 가져온다.
 - 여행 기간은 최대 14일이다. 생성·일자·방문 항목 저장은 하나의 트랜잭션으로 처리한다.
-- `ROUTE_AWARE_V2`는 실제 도로망·교통상황이 아닌 직선거리 추정치를 사용한다. 요일별 여러 영업 구간과 자정 이후 종료 구간을 여행 날짜에 맞춰 사용한다.
+- 외부 경로가 적용되면 `ROUTE_MATRIX_V4`, 대체 계산만 사용하면 `ROUTE_AWARE_V2`를 반환한다. 요일별 여러 영업 구간과 자정 이후 종료 구간을 여행 날짜에 맞춰 사용한다.
 
 성공 응답 (`data`):
 ```json
 {
-  "generator": "ROUTE_AWARE_V2",
+  "generator": "ROUTE_MATRIX_V4",
   "selectedPlaceCount": 6,
   "availableSlotCount": 12,
   "estimatedDistanceKm": 12.35,
   "estimatedTravelMinutes": 48,
   "estimatedCost": 85000,
-  "warnings": ["이동 시간은 직선거리와 평균 시속 20km를 기준으로 한 추정치입니다."],
+  "warnings": ["이동 시간과 거리는 Google Routes 도로망 기준입니다."],
   "itinerary": { "id": 1, "title": "부산 2박 3일", "days": [] }
 }
 ```
