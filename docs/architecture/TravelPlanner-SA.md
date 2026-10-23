@@ -4,8 +4,8 @@
 > "이 규칙대로 짜라"는 계약(contract) 문서로 취급한다. 새 도메인/API를 추가하기 전에 반드시 이 문서를 먼저 읽고,
 > 여기 정의된 패키지 구조·레이어 규칙·공통 골격을 그대로 재사용한다. 규칙을 바꿔야 하면 코드보다 이 문서를 먼저 수정한다.
 
-- 버전: 0.6
-- 상태: 기본 CRUD + Google Places·Routes 기반 여행 계획 V4 구현 완료
+- 버전: 0.7
+- 상태: 기본 CRUD + Google Places·Routes 기반 생성 + AI 일정 수정 V5 구현 완료
 - 최종 수정: 2026-10-23
 
 ---
@@ -15,8 +15,8 @@
 - 서비스명(기획): 트래블메이커 — 여행 조건(도시/날짜/예산/취향)을 입력하면 AI가 일정을 자동 생성하고,
   실시간 채팅으로 즉시 수정하며, 동행자와 하나의 일정을 실시간 공동 편집하는 여행 플래너.
 - 리포지토리명: TravelPlanner
-- 현재 단계: 공통 골격 + 회원/일정/장소 CRUD + Google Places 장소와 Google Routes 이동시간을 반영한 일정 초안 생성 구현 완료.
-- 다음 작업: 대화형 AI 일정 수정 흐름을 구현한다.
+- 현재 단계: Google Places·Routes 일정 생성과 OpenAI 구조화 출력 기반 일정 수정 구현 완료.
+- 다음 작업: 운영 데이터베이스와 배포 기반을 구성한다.
 
 ## 2. 기술 스택 (build.gradle 기준, 임의 추측 금지)
 
@@ -63,7 +63,7 @@ com.example.travelplanner
 │  ├─ controller / service / repository / entity / dto
 ├─ itinerary/                   ← 일정 (구현 완료)
 ├─ place/                       ← 장소/검색 (구현 완료, 검색엔진 연동은 2단계)
-├─ planning/                    ← 여행 조건 기반 일정 초안 생성 (`ROUTE_MATRIX_V4`, 장애 시 V2)
+├─ planning/                    ← 일정 생성과 `planning/ai` 자연어 일정 수정
 └─ realtime/                    ← 실시간/채팅 (2~3단계 이전에는 생성 금지)
 ```
 
@@ -142,7 +142,7 @@ public class Itinerary extends BaseTimeEntity {
 - `PERMIT_ALL_PATHS`: `/api/health`, `/h2-console/**`, `/api/auth/signup`, `/api/auth/login`, `/api/itineraries/shared/**`. `PERMIT_ALL_GET_PATHS`(GET만 허용): `/api/places`, `/api/places/*`.
 - `jwt.secret`, `jwt.access-token-validity-seconds`는 `application.properties`에 있다. **운영 배포 전 반드시 별도 secret으로 교체할 것** (현재 로컬 개발용 하드코딩 값).
 - 비밀번호는 `BCryptPasswordEncoder`로 해시한다(`SecurityConfig`의 `passwordEncoder` 빈).
-- 장소(place) 등록/수정/삭제는 현재 "인증된 사용자면 누구나 가능"하다 — ADMIN 한정 여부는 여전히 결정 대기(정책 문서 3절, API명세 5절)이며, 임의로 제한을 추가하지 않았다.
+- 장소(place) 등록/수정/삭제는 현재 "인증된 사용자면 누구나 가능"하다 — ADMIN 한정 여부는 여전히 결정 대기(정책 문서 3절, API명세 7절)이며, 임의로 제한을 추가하지 않았다.
 
 ### 5.5 표본: HealthCheckController
 경로: `common/health/HealthCheckController.java`, `GET /api/health`
@@ -174,7 +174,8 @@ public class Itinerary extends BaseTimeEntity {
 | 2 | itinerary (일정) | `docs/architecture/TravelPlanner-API명세.md` 2절 전체 | 구현 완료 |
 | 3 | place (장소/검색) | `GET/POST/PUT/DELETE /api/places` | 구현 완료 (검색엔진 연동 전, JPA 쿼리 필터링) |
 | 4 | planning (여행 계획) | `POST /api/travel-plans/generate` | Google Routes 이동시간 기반 V4 구현 완료 |
-| 5 | realtime (실시간/채팅) | WebSocket 엔드포인트 | 여행 계획 흐름 검증 전 착수 금지, 미착수 |
+| 5 | planning/ai (AI 수정) | `POST /api/itineraries/{id}/ai-revisions` | 구조화 명령 검증·원자적 적용 완료 |
+| 6 | realtime (실시간/채팅) | WebSocket 엔드포인트 | 미착수 |
 
 ## 8. 단계적 로드맵
 
@@ -183,7 +184,7 @@ public class Itinerary extends BaseTimeEntity {
 - **1단계 여행 계획 (완료)**: 여행 조건 입력 → 장소 후보 → 규칙 기반 일정 초안 → 검증 → 저장.
 - **2단계 일정 품질 (완료)**: 좌표 기반 동선, 영업시간, 예산, 체류시간 반영과 품질 경고, 방문별 이동·비용 추정값 영속화.
 - **3~4단계 (완료)**: Google Places 장소 공급자와 Google Routes 이동시간 행렬을 연동하고 장애 대체를 검증했다.
-- **5단계**: 구조화 출력과 검증을 거치는 대화형 AI 일정 수정을 구현한다.
+- **5단계 (완료)**: OpenAI Structured Outputs와 서버 검증을 거치는 대화형 AI 일정 수정을 구현했다.
 - **실시간 단계**: WebSocket 공동 편집, 낙관적 락(`@Version`), 필요 시 Redis Pub/Sub와 분산 락을 추가한다.
 
 ## 9. 결정 대기 / 에이전트가 임의로 정하면 안 되는 것
