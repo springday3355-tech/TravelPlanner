@@ -11,7 +11,8 @@
 - 3단계 완료: Google Places Text Search·Place Details 연동, 외부 장소 중복 동기화, 요일별·자정 이후 영업시간 반영
 - 4단계 완료: Google Routes 이동시간 행렬, 대중교통·자동차·도보 선택, 캐시·비용 상한·장애 대체 적용
 - 5단계 완료: OpenAI Structured Outputs 기반 자연어 일정 수정, 서버 검증, 원자적 변경 적용
-- 이후 목표: 운영 데이터베이스와 배포 기반
+- 6단계 완료: MySQL 운영 프로파일, Flyway 마이그레이션, Docker 실행 환경, MySQL CI 검증
+- 이후 목표: 공동 편집과 동시성 제어
 
 ## 기술 스택
 
@@ -20,6 +21,8 @@
 - Spring Data JPA
 - Spring Security + JWT
 - H2 (로컬·테스트)
+- MySQL 8.4 + Flyway (운영)
+- Docker Compose
 - Gradle Wrapper
 
 ## 실행
@@ -37,6 +40,15 @@ macOS/Linux:
 ```
 
 기본 실행 환경은 H2를 사용합니다. 애플리케이션은 `http://localhost:8080`에서 실행되며 상태 확인 API는 `GET /api/health`입니다.
+
+운영 구성을 로컬에서 실행하려면 `.env.example`을 `.env`로 복사한 뒤 `DB_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `JWT_SECRET`을 채우고 실행합니다.
+
+```powershell
+docker compose up --build -d
+docker compose ps
+```
+
+`prod` 프로파일은 MySQL 연결 후 Flyway 마이그레이션을 적용하고 Hibernate로 엔티티 매핑을 검증합니다. 운영 절차는 [`docs/operations/TravelPlanner-운영런북.md`](docs/operations/TravelPlanner-운영런북.md)를 참고하세요.
 
 ## 테스트
 
@@ -67,7 +79,7 @@ macOS/Linux:
 
 ## 설정
 
-`src/main/resources/application.properties`의 JWT 비밀키는 로컬 개발용입니다. 배포 환경에서는 외부 비밀값으로 교체해야 합니다. 운영 데이터베이스와 배포 구성은 여행 계획의 핵심 흐름을 검증한 뒤 확정합니다.
+`src/main/resources/application.properties`의 JWT 비밀키는 로컬 개발 전용입니다. `prod` 프로파일은 `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`을 실행 환경에서 필수로 주입받으며 저장소에 실제 비밀값을 두지 않습니다.
 
 Google Places를 사용하려면 `.env.example`을 참고해 `GOOGLE_PLACES_ENABLED=true`와 `GOOGLE_PLACES_API_KEY`를 환경변수로 설정합니다. 키가 없으면 기존 DB 장소만 사용하며 외부 가져오기 API는 `L003`을 반환합니다.
 

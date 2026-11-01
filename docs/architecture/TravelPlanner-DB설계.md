@@ -5,7 +5,10 @@
 > `updated_at` 컬럼은 아래 표에 별도로 적지 않는다(자동 포함).
 
 - 로컬/테스트: H2 (`MODE=MySQL`)
-- 운영 예정: MySQL — datasource 설정은 미확정 (`TravelPlanner-SA.md` 9절 참고)
+- 운영: MySQL 8.4, Flyway 버전 마이그레이션, Hibernate `validate`
+- 최초 스키마: `src/main/resources/db/migration/V1__create_core_schema.sql`
+
+운영 스키마 변경은 기존 마이그레이션을 수정하지 않고 다음 버전 파일을 추가한다. 로컬·단위 테스트는 빠른 반복을 위해 H2와 Hibernate 스키마 생성을 유지하며, CI가 빈 MySQL에서 전체 마이그레이션을 별도로 검증한다.
 
 ## 1. ERD 개요
 
