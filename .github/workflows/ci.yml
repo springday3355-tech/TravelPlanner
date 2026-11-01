@@ -76,3 +76,7 @@ jobs:
           MYSQL_TEST_USERNAME: travelplanner
           MYSQL_TEST_PASSWORD: integration-test-password
         run: ./gradlew test --tests '*MySqlMigrationIntegrationTest' --no-daemon
+
+      - name: Print MySQL migration failure details
+        if: failure()
+        run: find build/test-results/test -name 'TEST-*.xml' -type f -print -exec cat {} \;
