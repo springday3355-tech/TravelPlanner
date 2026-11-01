@@ -4,9 +4,9 @@
 > "이 규칙대로 짜라"는 계약(contract) 문서로 취급한다. 새 도메인/API를 추가하기 전에 반드시 이 문서를 먼저 읽고,
 > 여기 정의된 패키지 구조·레이어 규칙·공통 골격을 그대로 재사용한다. 규칙을 바꿔야 하면 코드보다 이 문서를 먼저 수정한다.
 
-- 버전: 0.7
-- 상태: 기본 CRUD + Google Places·Routes 기반 생성 + AI 일정 수정 V5 구현 완료
-- 최종 수정: 2026-10-23
+- 버전: 0.8
+- 상태: 기본 CRUD + Google Places·Routes 기반 생성 + AI 일정 수정 + MySQL 운영 기반 V6 구현 완료
+- 최종 수정: 2026-11-01
 
 ---
 
@@ -15,8 +15,8 @@
 - 서비스명(기획): 트래블메이커 — 여행 조건(도시/날짜/예산/취향)을 입력하면 AI가 일정을 자동 생성하고,
   실시간 채팅으로 즉시 수정하며, 동행자와 하나의 일정을 실시간 공동 편집하는 여행 플래너.
 - 리포지토리명: TravelPlanner
-- 현재 단계: Google Places·Routes 일정 생성과 OpenAI 구조화 출력 기반 일정 수정 구현 완료.
-- 다음 작업: 운영 데이터베이스와 배포 기반을 구성한다.
+- 현재 단계: MySQL·Flyway·Docker 기반 운영 실행 환경과 CI 마이그레이션 검증 구현 완료.
+- 다음 작업: 공동 편집과 동시성 제어를 구성한다.
 
 ## 2. 기술 스택 (build.gradle 기준, 임의 추측 금지)
 
@@ -25,7 +25,7 @@
 | 언어 | Java 21 (toolchain 고정) |
 | 프레임워크 | Spring Boot 4.1.0 |
 | 빌드 | Gradle (wrapper 9.5.1) |
-| 영속성 | Spring Data JPA + H2(로컬/테스트), MySQL(운영 예정, 미설정) |
+| 영속성 | Spring Data JPA + H2(로컬/단위 테스트), MySQL 8.4 + Flyway(운영/CI) |
 | 보안 | Spring Security + JWT(io.jsonwebtoken:jjwt 0.13.0, jjwt-gson 사용 — Jackson 2/3 충돌 회피), STATELESS |
 | 외부 연동 | Spring Cloud OpenFeign (2025.1.2 BOM, 아직 미사용) |
 | 롬복 | Lombok |
@@ -140,7 +140,7 @@ public class Itinerary extends BaseTimeEntity {
 - `common/security/JwtAuthenticationFilter`가 매 요청마다 헤더를 검사해 유효하면 `memberId`(Long)를 principal로 하는 `Authentication`을 `SecurityContext`에 채운다. 컨트롤러/서비스는 `SecurityUtils.getCurrentMemberId()`로만 현재 로그인 회원을 얻는다(SecurityContextHolder 직접 접근 금지).
 - 인증 실패(401)/인가 실패(403)도 `JwtAuthenticationEntryPoint`/`JwtAccessDeniedHandler`가 `ApiResponse` 포맷으로 응답한다 — Security 필터 체인 단계의 거부는 `GlobalExceptionHandler`를 거치지 않으므로 이 두 핸들러가 없으면 포맷이 깨진다.
 - `PERMIT_ALL_PATHS`: `/api/health`, `/h2-console/**`, `/api/auth/signup`, `/api/auth/login`, `/api/itineraries/shared/**`. `PERMIT_ALL_GET_PATHS`(GET만 허용): `/api/places`, `/api/places/*`.
-- `jwt.secret`, `jwt.access-token-validity-seconds`는 `application.properties`에 있다. **운영 배포 전 반드시 별도 secret으로 교체할 것** (현재 로컬 개발용 하드코딩 값).
+- 로컬의 `jwt.secret` 기본값은 개발 전용이다. `prod` 프로파일은 기본값 없이 `JWT_SECRET` 환경변수를 필수로 요구한다.
 - 비밀번호는 `BCryptPasswordEncoder`로 해시한다(`SecurityConfig`의 `passwordEncoder` 빈).
 - 장소(place) 등록/수정/삭제는 현재 "인증된 사용자면 누구나 가능"하다 — ADMIN 한정 여부는 여전히 결정 대기(정책 문서 3절, API명세 7절)이며, 임의로 제한을 추가하지 않았다.
 
@@ -185,12 +185,13 @@ public class Itinerary extends BaseTimeEntity {
 - **2단계 일정 품질 (완료)**: 좌표 기반 동선, 영업시간, 예산, 체류시간 반영과 품질 경고, 방문별 이동·비용 추정값 영속화.
 - **3~4단계 (완료)**: Google Places 장소 공급자와 Google Routes 이동시간 행렬을 연동하고 장애 대체를 검증했다.
 - **5단계 (완료)**: OpenAI Structured Outputs와 서버 검증을 거치는 대화형 AI 일정 수정을 구현했다.
+- **6단계 (완료)**: MySQL 운영 프로파일, Flyway 스키마, Docker Compose, 비밀값 외부화, MySQL CI 검증을 구현했다.
 - **실시간 단계**: WebSocket 공동 편집, 낙관적 락(`@Version`), 필요 시 Redis Pub/Sub와 분산 락을 추가한다.
 
 ## 9. 결정 대기 / 에이전트가 임의로 정하면 안 되는 것
 
 - [x] ~~인증 방식: 세션 vs JWT~~ → JWT(STATELESS)로 확정, `common/security/*` 구현 완료.
-- [ ] MySQL 운영 환경 datasource 설정 (현재 로컬은 H2 auto-config만 사용 중).
+- [x] MySQL 운영 환경 datasource 설정 → `prod` 프로파일과 Flyway, Docker Compose로 확정.
 - [ ] 검색엔진(Elasticsearch vs Meilisearch) 선택 — 외부 장소 데이터 규모와 검색 품질 요구가 확정될 때.
 - [ ] 분산 락 도구(Redisson 등) — 3단계 착수 시.
 - [ ] 장소(place) 등록/수정/삭제 권한 범위(ADMIN 한정 여부) — 현재 인증된 사용자 누구나 가능(정책 문서 3절).
